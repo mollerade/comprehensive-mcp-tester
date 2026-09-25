@@ -17,12 +17,14 @@ function loadClient() {
   const ctx = {
     document: { getElementById: el, querySelectorAll: () => [], createElement: el, body: el(), documentElement: el() },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    window: { innerWidth: 1200, innerHeight: 800 },
+    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    window: { innerWidth: 1200, innerHeight: 800, addEventListener() {} },
+    location: { pathname: '/', search: '', origin: 'http://127.0.0.1:8787', protocol: 'http:', hostname: '127.0.0.1' },
     navigator: {},
     setInterval: () => 0, clearInterval() {}, setTimeout: () => 0, alert() {}, console,
     Blob: function () {}, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
     fetch: () => new Promise(() => {}),
-    btoa: globalThis.btoa,
+    btoa: globalThis.btoa, URL,
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
@@ -231,5 +233,75 @@ describe('protocol eras (spec 2026-07-28)', () => {
     assert.equal(c.pickVersion(['2027-01-01', '2026-07-28'], c.MODERN_VERSIONS), '2026-07-28');
     assert.equal(c.pickVersion(['2027-01-01'], c.MODERN_VERSIONS), null);
     assert.equal(c.pickVersion(['2026-07-28', '2025-06-18'], null), '2025-06-18');
+  });
+});
+
+describe('authorization helpers', () => {
+  test('WWW-Authenticate: Bearer parameters, quoted and bare, case-insensitive names', () => {
+    const c1 = c.parseWwwAuthenticate('Bearer resource_metadata="https://m.example/.well-known/oauth-protected-resource/mcp", scope="files:read files:write", error=invalid_token');
+    assert.equal(c1.scheme, 'Bearer');
+    assert.equal(c1.params.resource_metadata, 'https://m.example/.well-known/oauth-protected-resource/mcp');
+    assert.equal(c1.params.scope, 'files:read files:write');
+    assert.equal(c1.params.error, 'invalid_token');
+    assert.equal(c.parseWwwAuthenticate('Basic realm="x", Bearer Scope="a"').params.scope, 'a');
+    assert.equal(c.parseWwwAuthenticate('Bearer error_description="say \\"hi\\""').params.error_description, 'say "hi"');
+    assert.equal(c.parseWwwAuthenticate(null), null);
+  });
+
+  test('protected resource metadata URLs: path-inserted first, then root', () => {
+    assert.deepEqual([...c.wellKnownPrmUrls('https://example.com/public/mcp')],
+      ['https://example.com/.well-known/oauth-protected-resource/public/mcp', 'https://example.com/.well-known/oauth-protected-resource']);
+    assert.deepEqual([...c.wellKnownPrmUrls('https://example.com/')], ['https://example.com/.well-known/oauth-protected-resource']);
+  });
+
+  test('authorization server metadata URLs follow the spec priority', () => {
+    assert.deepEqual([...c.asMetadataUrls('https://auth.example.com/tenant1')], [
+      'https://auth.example.com/.well-known/oauth-authorization-server/tenant1',
+      'https://auth.example.com/.well-known/openid-configuration/tenant1',
+      'https://auth.example.com/tenant1/.well-known/openid-configuration',
+    ]);
+    assert.deepEqual([...c.asMetadataUrls('https://auth.example.com')], [
+      'https://auth.example.com/.well-known/oauth-authorization-server',
+      'https://auth.example.com/.well-known/openid-configuration',
+    ]);
+  });
+
+  test('canonical resource URI: lowercase host, no fragment, no bare trailing slash', () => {
+    assert.equal(c.canonicalResource('HTTPS://MCP.Example.com/'), 'https://mcp.example.com');
+    assert.equal(c.canonicalResource('https://mcp.example.com/mcp#x'), 'https://mcp.example.com/mcp');
+    assert.equal(c.canonicalResource('https://mcp.example.com:8443'), 'https://mcp.example.com:8443');
+  });
+
+  test('iss validation follows the RFC 9207 table', () => {
+    const I = 'https://as.example';
+    assert.equal(c.checkIss(I, I, true), null);
+    assert.match(c.checkIss(undefined, I, true), /no iss/);
+    assert.equal(c.checkIss(undefined, I, false), null);
+    assert.match(c.checkIss('https://evil.example', I, false), /does not match/);
+    assert.match(c.checkIss('https://as.example/', I, true), /does not match/, 'no trailing-slash normalisation');
+  });
+
+  test('redaction hides secrets and tokens but keeps metadata fields', () => {
+    const r = c.redact({ access_token: 'abc', token_type: 'Bearer', token_endpoint: 'https://t', nested: { client_secret: 'shh' } });
+    assert.equal(r.access_token, '[redacted, 3 chars]');
+    assert.equal(r.token_type, 'Bearer');
+    assert.equal(r.token_endpoint, 'https://t');
+    assert.equal(r.nested.client_secret, '[redacted, 3 chars]');
+  });
+
+  test('form encoding round-trips and skips empty values', () => {
+    const enc = c.formEncode({ a: 'x y', b: 'https://h/p?q=1', skip: '', none: null });
+    assert.equal(enc, 'a=x%20y&b=https%3A%2F%2Fh%2Fp%3Fq%3D1');
+    assert.deepEqual({ ...c.parseQuery('?a=x+y&b=https%3A%2F%2Fh') }, { a: 'x y', b: 'https://h' });
+  });
+
+  test('credentials are only sent to the server they were set up for', () => {
+    c.auth.mode = 'bearer'; c.auth.bearer = 'T'; c.auth.boundTo = 'https://a.example/mcp';
+    c.state.serverUrl = 'https://a.example/mcp';
+    assert.equal(c.authHeaders().Authorization, 'Bearer T');
+    c.state.serverUrl = 'https://b.example/mcp';
+    assert.deepEqual({ ...c.authHeaders() }, {});
+    c.auth.mode = 'apikey'; c.auth.apiKeyName = 'X-Key'; c.auth.apiKeyValue = 'K'; c.state.serverUrl = 'https://a.example/mcp';
+    assert.deepEqual({ ...c.authHeaders() }, { 'X-Key': 'K' });
   });
 });

@@ -52,9 +52,11 @@ function banner(format) {
     ' *',
     ...deploy,
     ' *',
-    ' * OPTIONAL: set ALLOWED_ORIGINS (Settings → Variables) to restrict which MCP hosts',
-    ' * this Worker will proxy to, e.g. "developer.hsbc.com". This Worker is public —',
-    ' * put Cloudflare Access in front of it before using it with credentials.',
+    ' * OPTIONAL: set ALLOWED_ORIGINS (Settings → Variables) to restrict which hosts this',
+    ' * Worker will proxy to, e.g. "developer.hsbc.com". Include the authorization server',
+    ' * hosts too if you sign in. This Worker is public: put Cloudflare Access in front of',
+    ' * it before using it with credentials, with a bypass for /oauth/client-metadata.json',
+    ' * so authorization servers can fetch the client metadata document.',
     ' */',
     '',
   ].join('\n');
@@ -62,7 +64,8 @@ function banner(format) {
 
 export function build({ write = true } = {}) {
   const html = assembleHtml();
-  const core = stripModuleSyntax(readFileSync(join(ROOT, 'src/core/proxy.js'), 'utf8'));
+  const core = ['src/core/proxy.js', 'src/core/oauth-client.js']
+    .map((f) => stripModuleSyntax(readFileSync(join(ROOT, f), 'utf8'))).join('\n');
   const host = stripModuleSyntax(readFileSync(join(ROOT, 'src/hosts/cloudflare.js'), 'utf8'));
   const htmlConst = 'const HTML = ' + toTemplateLiteral(html) + ';\n\n';
 

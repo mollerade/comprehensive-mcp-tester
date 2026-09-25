@@ -1,6 +1,13 @@
 /* ── Init ── */
-loadServers();
-restoreCurrent();
-renderThemeBtn();
-document.getElementById('urlInput').addEventListener('input', renderSaveBtn);
-if (state.servers.length) document.getElementById('sidebar').classList.remove('collapsed');
+if (location.pathname === '/oauth/callback' && !isRedirectCallback()) {
+  finishOAuthPopup();
+} else {
+  loadServers();
+  restoreCurrent();
+  renderThemeBtn();
+  renderAuthBadge();
+  document.getElementById('urlInput').addEventListener('input', renderSaveBtn);
+  window.addEventListener('message', onAuthMessage);
+  if (state.servers.length) document.getElementById('sidebar').classList.remove('collapsed');
+  if (location.pathname === '/oauth/callback') resumeRedirectSignIn();
+}

@@ -58,6 +58,7 @@
     </select>
   </div>
   <button class="btn btn-ghost btn-sm" onclick="showHeadersModal()">Headers <span class="hdr-count" id="hdrCount" hidden>0</span></button>
+  <button class="btn btn-ghost btn-sm" id="authBtn" onclick="openAuthModal()">Auth <span class="hdr-count" id="authBadge" hidden></span></button>
   <div class="proxy-badge">&#x2713; Server-side proxy</div>
   <div class="control-group" style="margin-left:auto">
     <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear Log</button>
@@ -121,6 +122,10 @@
       <button class="btn btn-primary" onclick="saveHeaders()">Apply</button>
     </div>
   </div>
+</div>
+
+<div class="modal-overlay" id="authModal" hidden>
+  <div class="modal modal-wide" id="authModalBody"></div>
 </div>
 
 <!-- @inline-js -->

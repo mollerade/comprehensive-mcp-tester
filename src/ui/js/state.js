@@ -15,6 +15,27 @@ var diag = {
   running: false, startedAt: null
 };
 
+/* Authentication. In memory only, by design: a reload forgets every credential.
+   boundTo is the server the credentials were set up for; they are never sent elsewhere. */
+var auth = {
+  mode: 'none', boundTo: null,
+  bearer: '', apiKeyName: 'X-API-Key', apiKeyValue: '',
+  clientId: '', clientSecret: '', scope: '', tokenEndpoint: '',
+  preIssuer: null,        // issuer a pre-registered client ID was first used with
+  registrations: {},      // issuer → { client_id, client_secret, how }  (spec: key by issuer)
+  token: null,            // { access_token, token_type, expires_at, refresh_token, scope, issuer }
+  challenge: null,        // last 401/403 { status, header, params, at }
+  pending: null,          // in-flight authorization request (state, PKCE verifier, expected issuer)
+  trace: [], busy: false
+};
+
+var AUTH_MODES = [
+  ['none', 'None'], ['oauth', 'OAuth sign-in'], ['bearer', 'Bearer token'],
+  ['apikey', 'API key header'], ['client_credentials', 'Client credentials']
+];
+var REDACT_KEYS = ['access_token', 'refresh_token', 'id_token', 'client_secret', 'code_verifier',
+                   'password', 'assertion', 'client_assertion', 'registration_access_token'];
+
 var STRIP_MAX = 120;
 
 /* Protocol eras (spec 2026-07-28, "Versioning and Compatibility"):
@@ -24,5 +45,5 @@ var MODERN_VERSIONS = ['2026-07-28'];
 var LEGACY_VERSION = '2025-11-25';
 var MODERN_ERROR_CODES = [-32020, -32021, -32022];   // HeaderMismatch, MissingRequiredClientCapability, UnsupportedProtocolVersion
 var MCP_META = 'io.modelcontextprotocol/';
-var CLIENT_INFO = { name: 'MCP Tester', version: '0.9.0' };
+var CLIENT_INFO = { name: 'MCP Tester', version: '0.10.0' };
 

@@ -6,8 +6,10 @@
  * diagnostics. It has no knowledge of Cloudflare, Node or any host: hosts
  * parse the incoming request, call proxyMcp(), and serialise the result.
  *
- * Contract (unchanged from v7, relied on by the UI):
- *   input  { url, method?, headers?, body?, timeoutMs?, retries? }
+ * Contract (relied on by the UI):
+ *   input  { url, method?, headers?, body?, timeoutMs?, retries?, purpose? }
+ *          purpose: 'mcp' (default) or 'oauth'. OAuth discovery and token calls
+ *          aren't MCP requests, so the MCP Accept/Content-Type repairs are skipped.
  *   output { status, json }  where json is either
  *          { error }                                  (bad input, 4xx)
  *          { status, headers, body, diag }             (origin reached or failed)
@@ -56,6 +58,7 @@ export async function proxyMcp(payload, env) {
   var body = payload.body || null;
   var timeoutMs = clampInt(payload.timeoutMs, 500, MAX_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
   var retries = clampInt(payload.retries, 0, MAX_RETRIES, 0);
+  var purpose = payload.purpose === 'oauth' ? 'oauth' : 'mcp';
 
   if (!targetUrl) return { status: 400, json: { error: "Missing 'url' in request" } };
 
@@ -79,11 +82,15 @@ export async function proxyMcp(payload, env) {
   // MCP Streamable HTTP requires the client to accept BOTH content types.
   // Enforced here so it can never be missing or partial.
   var accept = outHeaders.get('accept') || '';
-  if (accept.indexOf('application/json') === -1 || accept.indexOf('text/event-stream') === -1) {
-    outHeaders.set('accept', 'application/json, text/event-stream');
-  }
-  if (!outHeaders.get('content-type') && method !== 'GET' && method !== 'HEAD') {
-    outHeaders.set('content-type', 'application/json');
+  if (purpose === 'oauth') {
+    if (!accept) outHeaders.set('accept', 'application/json');
+  } else {
+    if (accept.indexOf('application/json') === -1 || accept.indexOf('text/event-stream') === -1) {
+      outHeaders.set('accept', 'application/json, text/event-stream');
+    }
+    if (!outHeaders.get('content-type') && method !== 'GET' && method !== 'HEAD') {
+      outHeaders.set('content-type', 'application/json');
+    }
   }
 
   var attemptLog = [];

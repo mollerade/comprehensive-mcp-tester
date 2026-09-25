@@ -23,6 +23,7 @@
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
+import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
 import { assembleHtml } from '../ui/assemble.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -94,8 +95,13 @@ export function createServer(opts = {}) {
       }
       const url = new URL(req.url, 'http://' + hostHeader);
 
-      if (req.method === 'GET' && url.pathname === '/') {
+      // The OAuth callback is the same page: it hands the result to the window that opened it
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === CALLBACK_PATH)) {
         return send(res, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }, assembleHtml());
+      }
+
+      if (req.method === 'GET' && url.pathname === CLIENT_METADATA_PATH) {
+        return sendJson(res, 200, clientMetadataDocument('http://' + hostHeader));
       }
 
       if (req.method === 'POST' && url.pathname === '/proxy') {

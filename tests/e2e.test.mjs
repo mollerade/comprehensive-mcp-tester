@@ -269,6 +269,107 @@ test('dual-era server is spoken to in the modern protocol', { skip }, async () =
   await page.click('#connectBtn');
 });
 
+const statusIs = (text) => page.waitForFunction((t) => document.getElementById('statusText').textContent === t, text, { timeout: 5000 });
+const traceStep = (name) => page.evaluate((n) => window.auth.trace.find((s) => s.name === n), name);
+
+test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resource, then connects', { skip }, async () => {
+  await page.fill('#urlInput', mock.base + '/secure');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  assert.equal(await page.isVisible('#authModal'), true);
+  assert.equal(await page.inputValue('#authMode'), 'oauth');
+  assert.match(await page.textContent('.auth-challenge'), /resource_metadata=/);
+
+  await page.click('#authSignIn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+
+  const reg = mock.oauth.registrations.at(-1);
+  assert.equal(reg.application_type, 'native', 'a localhost tester registers as a native app');
+  assert.deepEqual(reg.redirect_uris, [base + '/oauth/callback']);
+  const az = mock.oauth.authorizeRequests.at(-1);
+  assert.equal(az.resource, mock.base + '/secure');
+  assert.equal(az.code_challenge_method, 'S256');
+  assert.equal(az.scope, 'mcp:read', 'scope comes from the WWW-Authenticate challenge');
+  const tr = mock.oauth.tokenRequests.at(-1);
+  assert.equal(tr.grant_type, 'authorization_code');
+  assert.equal(tr.resource, mock.base + '/secure');
+  assert.ok(tr.code_verifier && tr.code_verifier.length >= 43);
+
+  const call = lastCall('tools/list');
+  assert.equal(call.path, '/secure');
+  assert.match(call.headers.authorization, /^Bearer at-/);
+  assert.equal((await traceStep('Issuer check (RFC 9207)')).outcome, 'ok');
+  assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure');
+  assert.equal(await page.textContent('#authBadge'), 'Token');
+});
+
+test('OAuth: tokens and secrets never reach the page as text', { skip }, async () => {
+  const token = await page.evaluate(() => window.auth.token.access_token);
+  await page.click('.tab-btn[data-tab="log"]');
+  assert.ok(await page.locator('.log-method', { hasText: 'oauth \u00b7 Token request' }).count() > 0);
+  assert.equal((await page.content()).includes(token), false);
+});
+
+test('OAuth: a response with the wrong iss is rejected before the code is used', { skip }, async () => {
+  await page.click('#connectBtn');   // disconnect
+  const tokenRequests = mock.oauth.tokenRequests.length;
+  await page.fill('#urlInput', mock.base + '/secure-mixup');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.click('#authSignIn');
+  await page.waitForFunction(() => window.auth.trace.some((s) => s.name === 'Issuer check (RFC 9207)'), null, { timeout: 10000 });
+  assert.equal((await traceStep('Issuer check (RFC 9207)')).outcome, 'fail');
+  assert.match((await traceStep('Client registration')).detail, /Reusing/, 'registration is reused per issuer');
+  assert.equal(mock.oauth.tokenRequests.length, tokenRequests, 'the code was never sent to a token endpoint');
+  assert.equal(await page.evaluate(() => window.state.connected), false);
+});
+
+test('client credentials, no resource_metadata hint: discovery probes the well-known URL', { skip }, async () => {
+  await page.click('.modal-actions >> text=Close');
+  await page.fill('#urlInput', mock.base + '/secure-nohint');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.selectOption('#authMode', 'client_credentials');
+  await page.fill('#authClientId', 'cc-client');
+  await page.fill('#authClientSecret', 'cc-secret');
+  await page.click('#authGetToken');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  assert.equal((await traceStep('Challenge')).outcome, 'warn');
+  assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure-nohint');
+  const tr = mock.oauth.tokenRequests.at(-1);
+  assert.equal(tr.grant_type, 'client_credentials');
+  assert.match(tr.authorization, /^Basic /, 'secret goes in Basic auth, as the metadata allows');
+  assert.equal(tr.client_secret, undefined);
+  assert.equal(tr.resource, mock.base + '/secure-nohint');
+  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  await page.click('#connectBtn');
+});
+
+test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on return', { skip }, async () => {
+  await page.fill('#urlInput', mock.base + '/secure');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.evaluate(() => { window.open = () => null; });
+  await page.selectOption('#authMode', 'oauth');
+  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
+  assert.equal(await page.evaluate(() => location.search), '', 'no code left in the address bar');
+  const trace = await page.evaluate(() => window.auth.trace.map((s) => s.name + ':' + s.outcome));
+  assert.ok(trace.includes('Protected resource metadata:ok'), 'trace from before the redirect survives');
+  assert.ok(trace.includes('Token request:ok'));
+  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  await page.click('#connectBtn');
+});
+
+test('credentials are not sent to a different server', { skip }, async () => {
+  await page.fill('#urlInput', mock.url);
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  assert.equal(lastCall('tools/list').headers.authorization, undefined);
+  await page.click('#connectBtn');
+});
+
 test('no horizontal overflow at phone width', { skip }, async () => {
   await page.setViewportSize({ width: 400, height: 800 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);

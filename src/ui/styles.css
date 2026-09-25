@@ -345,6 +345,30 @@
   .modal select { font-family: var(--font-ui); appearance: auto; -webkit-appearance: auto; }
   .modal input:focus, .modal textarea:focus { border-color: var(--accent); }
   .modal-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .modal-wide { max-width: 560px; }
+  .auth-note { font-size: 12px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+  .auth-note b { color: var(--ink-secondary); font-weight: 600; }
+  .auth-note.warn { color: var(--warning); }
+  .auth-opt { font-weight: 400; color: var(--ink-muted); }
+  .auth-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .auth-challenge, .auth-token {
+    font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: var(--ink-secondary);
+    background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 7px 9px; overflow-wrap: anywhere;
+  }
+  .auth-challenge .log-body-label, .auth-token .log-body-label { display: block; }
+  .auth-trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .trace-step { padding: 6px 8px 6px 10px; border-left: 3px solid var(--border); background: var(--surface); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 12px; }
+  .trace-step.ok { border-left-color: var(--st-ok); }
+  .trace-step.warn { border-left-color: var(--st-slow); }
+  .trace-step.fail { border-left-color: var(--st-fail); background: var(--error-soft); }
+  .trace-head { display: flex; align-items: center; gap: 6px; color: var(--ink); }
+  .trace-head b { font-weight: 600; }
+  .trace-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-muted); flex-shrink: 0; }
+  .trace-step.ok .trace-dot { background: var(--st-ok); }
+  .trace-step.warn .trace-dot { background: var(--st-slow); }
+  .trace-step.fail .trace-dot { background: var(--st-fail); }
+  .trace-detail { color: var(--ink-secondary); line-height: 1.45; margin-top: 2px; overflow-wrap: anywhere; }
+  .trace-url { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-muted); margin-top: 2px; overflow-wrap: anywhere; }
   .proxy-badge {
     display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
     border-radius: 4px; font-size: 10px; font-weight: 600;

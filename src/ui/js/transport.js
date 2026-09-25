@@ -10,7 +10,8 @@ function proxyFetch(targetUrl, options) {
       headers: options.headers || {},
       body: options.body || null,
       timeoutMs: getTimeout(),
-      retries: getRetries()
+      retries: getRetries(),
+      purpose: options.purpose
     })
   }).then(function(res) {
     return res.json().then(function(env) {
@@ -21,6 +22,7 @@ function proxyFetch(targetUrl, options) {
         status: env.status,
         headers: env.headers || {},
         bodyText: env.body,
+        proxyError: env.error || null,
         diag: d,
         clientMs: clientMs,
         overheadMs: Math.max(0, clientMs - (d.totalMs || 0)),
@@ -109,6 +111,8 @@ function sendBody(body, source) {
 
   var hdrs = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
   for (var k in state.headers) { if (state.headers.hasOwnProperty(k)) hdrs[k] = state.headers[k]; }
+  var ah = authHeaders();
+  for (var a in ah) { if (ah.hasOwnProperty(a)) hdrs[a] = ah[a]; }
   if (body.method && speaksModern(body)) {
     var mh = modernHeaders(body);
     for (var m in mh) { if (mh.hasOwnProperty(m)) hdrs[m] = mh[m]; }
@@ -122,6 +126,7 @@ function sendBody(body, source) {
     .then(function(res) {
       var sid = res.get('mcp-session-id');
       if (sid) state.sessionId = sid;
+      if (res.status === 401 || res.status === 403) noteAuthChallenge(res.status, res.get('www-authenticate'));
 
       var status = res.status;
       var text = res.bodyText;
@@ -223,6 +228,7 @@ function handleConnect() {
   state.transport = 'streamable';
   state.connecting = true;
   state.era = null; state.protocolVersion = null; state.sessionId = null;
+  var startedAt = Date.now();
   persistCurrent();
   setStatus('connecting', 'Connecting...');
   document.getElementById('connectBtn').textContent = '...';
@@ -232,9 +238,15 @@ function handleConnect() {
     if (res.error) {
       state.connecting = false;
       state.era = null; state.protocolVersion = null;
-      setStatus('error', 'Failed');
       document.getElementById('connectBtn').textContent = 'Connect';
       document.getElementById('connectBtn').className = 'btn btn-primary';
+      if (auth.challenge && auth.challenge.at >= startedAt) {
+        setStatus('error', auth.challenge.status === 403 ? 'Access denied' : 'Sign-in required');
+        showToast('The server wants credentials (HTTP ' + auth.challenge.status + ')', 'err');
+        openAuthModal(true);
+        return;
+      }
+      setStatus('error', 'Failed');
       showToast('Connection failed: ' + (res.error.message || 'see Log tab'), 'err');
       return;
     }
@@ -258,7 +270,7 @@ function handleConnect() {
 function negotiate() {
   return discoverAs(MODERN_VERSIONS[0]).then(function(r) {
     if (r.info) return r;
-    if (!r.transportOk) return { error: r.error };
+    if (!r.transportOk || r.status === 401 || r.status === 403) return { error: r.error };
     var err = r.data.error;
     if (isModernError(r.data)) {
       var supported = (err.code === -32022 && err.data && err.data.supported) || [];
@@ -296,7 +308,7 @@ function discoverAs(version) {
       } };
     }
     state.era = null; state.protocolVersion = null;
-    return { transportOk: r.transportOk, data: r.data || {},
+    return { transportOk: r.transportOk, status: r.status, data: r.data || {},
              error: (r.data && r.data.error) || { message: (r.diag && r.diag.errorDetail) || ('HTTP ' + r.status) } };
   });
 }

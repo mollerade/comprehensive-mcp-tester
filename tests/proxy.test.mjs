@@ -123,3 +123,16 @@ test('helpers: parseAllowedOrigins and clampInt', () => {
   assert.equal(clampInt('abc', 0, 3, 0), 0);
   assert.equal(clampInt(-5, 0, 3, 0), 0);
 });
+
+test('purpose "oauth": no MCP Accept or Content-Type repair; defaults to Accept: application/json', async () => {
+  const seen = [];
+  const fakeFetch = async (url, init) => { seen.push(init.headers); return new Response('{}', { status: 200 }); };
+  await proxyMcp({ url: 'https://as.example/.well-known/oauth-authorization-server', method: 'GET', purpose: 'oauth' }, { fetch: fakeFetch });
+  assert.equal(seen[0].get('accept'), 'application/json');
+  await proxyMcp({ url: 'https://as.example/token', method: 'POST', purpose: 'oauth', body: 'a=b',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, { fetch: fakeFetch });
+  assert.equal(seen[1].get('content-type'), 'application/x-www-form-urlencoded');
+  assert.equal(seen[1].get('accept'), 'application/json');
+  await proxyMcp({ url: 'https://mcp.example/mcp', method: 'POST', body: '{}' }, { fetch: fakeFetch });
+  assert.equal(seen[2].get('accept'), 'application/json, text/event-stream', 'MCP requests are still repaired');
+});

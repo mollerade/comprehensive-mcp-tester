@@ -50,7 +50,25 @@ describe('Cloudflare Service Worker bundle (dist/worker.js)', () => {
     const env = await res.json();
     assert.equal(env.status, 200);
     assert.ok(env.headers['mcp-session-id']);
-    assert.equal(res.headers.get('access-control-allow-origin'), '*');
+    assert.equal(res.headers.get('access-control-allow-origin'), null, 'no CORS grants');
+  });
+
+  test('security: foreign Origin on /proxy → 403; same origin accepted', async () => {
+    load();
+    const foreign = await dispatch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url), headers: { Origin: 'https://evil.example' } }));
+    assert.equal(foreign.status, 403);
+    const same = await dispatch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url), headers: { Origin: 'https://w.dev' } }));
+    assert.equal(same.status, 200);
+  });
+
+  test('OAuth: callback serves the UI; client metadata document names this origin', async () => {
+    load();
+    const cb = await dispatch(new Request('https://w.dev/oauth/callback?code=x&state=y'));
+    assert.equal(await cb.text(), assembleHtml());
+    const doc = await (await dispatch(new Request('https://w.dev/oauth/client-metadata.json'))).json();
+    assert.equal(doc.client_id, 'https://w.dev/oauth/client-metadata.json');
+    assert.deepEqual(doc.redirect_uris, ['https://w.dev/oauth/callback']);
+    assert.equal(doc.token_endpoint_auth_method, 'none');
   });
 
   test('invalid JSON → 400, unknown path → 404, OPTIONS → 204', async () => {
@@ -130,6 +148,13 @@ describe('Local Node server', () => {
       req.on('error', reject); req.end();
     });
     assert.equal(status, 421);
+  });
+
+  test('OAuth: callback serves the UI; client metadata document names this origin', async () => {
+    assert.equal(await (await fetch(base + '/oauth/callback?code=x')).text(), assembleHtml());
+    const doc = await (await fetch(base + '/oauth/client-metadata.json')).json();
+    assert.equal(doc.client_id, base + '/oauth/client-metadata.json');
+    assert.deepEqual(doc.redirect_uris, [base + '/oauth/callback']);
   });
 
   test('security: preflight gets no CORS grant', async () => {

@@ -4,6 +4,7 @@
   "storage.js",
   "util.js",
   "transport.js",
+  "auth.js",
   "schema.js",
   "diagnostics.js",
   "views.js",
