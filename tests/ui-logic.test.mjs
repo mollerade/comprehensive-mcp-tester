@@ -22,6 +22,7 @@ function loadClient() {
     setInterval: () => 0, clearInterval() {}, setTimeout: () => 0, alert() {}, console,
     Blob: function () {}, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
     fetch: () => new Promise(() => {}),
+    btoa: globalThis.btoa,
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
@@ -152,5 +153,83 @@ describe('JSON-RPC envelope', () => {
   });
   test('notifications carry no id', () => {
     assert.ok(!('id' in c.buildBody('notifications/initialized', {})));
+  });
+});
+
+describe('protocol eras (spec 2026-07-28)', () => {
+  const V = 'io.modelcontextprotocol/protocolVersion';
+
+  test('header values: plain ASCII passes through', () => assert.equal(c.encodeHeaderValue('us-west1'), 'us-west1'));
+  test('header values: spec examples use the base64 sentinel', () => {
+    assert.equal(c.encodeHeaderValue('Hello, 世界'), '=?base64?SGVsbG8sIOS4lueVjA==?=');
+    assert.equal(c.encodeHeaderValue(' padded '), '=?base64?IHBhZGRlZCA=?=');
+    assert.equal(c.encodeHeaderValue('line1\nline2'), '=?base64?bGluZTEKbGluZTI=?=');
+    assert.equal(c.encodeHeaderValue('=?base64?literal?='), '=?base64?PT9iYXNlNjQ/bGl0ZXJhbD89?=');
+  });
+
+  test('legacy era: no _meta, no modern headers', () => {
+    c.state.era = 'legacy';
+    const b = c.buildBody('tools/list', {});
+    c.applyModernMeta(b);
+    assert.ok(!('_meta' in b.params));
+  });
+
+  test('modern era: _meta carries version, identity, capabilities', () => {
+    c.state.era = 'modern'; c.state.protocolVersion = '2026-07-28';
+    const b = c.buildBody('tools/list', {});
+    c.applyModernMeta(b);
+    assert.equal(b.params._meta[V], '2026-07-28');
+    assert.equal(b.params._meta['io.modelcontextprotocol/clientInfo'].name, 'MCP Tester');
+    assert.deepEqual({ ...b.params._meta['io.modelcontextprotocol/clientCapabilities'] }, {});
+  });
+
+  test('modern era: an explicit _meta version in edited JSON is kept', () => {
+    c.state.era = 'modern'; c.state.protocolVersion = '2026-07-28';
+    const b = { jsonrpc: '2.0', id: 9, method: 'tools/list', params: { _meta: { [V]: '1900-01-01' } } };
+    c.applyModernMeta(b);
+    assert.equal(b.params._meta[V], '1900-01-01');
+    assert.equal(c.modernHeaders(b)['MCP-Protocol-Version'], '1900-01-01');
+  });
+
+  test('server/discover is modern even before an era is known', () => {
+    c.state.era = null;
+    const b = c.buildBody('server/discover', {});
+    c.applyModernMeta(b);
+    assert.equal(b.params._meta[V], '2026-07-28');
+  });
+
+  test('headers mirror method, name/uri and x-mcp-header arguments', () => {
+    c.state.era = 'modern'; c.state.protocolVersion = '2026-07-28';
+    c.state.tools = [{ name: 'q', inputSchema: { type: 'object', properties: {
+      region: { type: 'string', 'x-mcp-header': 'Region' },
+      opts: { type: 'object', properties: { dry: { type: 'boolean', 'x-mcp-header': 'Dry' } } },
+      ratio: { type: 'number', 'x-mcp-header': 'Ratio' },
+      bad: { type: 'string', 'x-mcp-header': 'has space' },
+    } } }];
+    const b = c.buildBody('tools/call', { name: 'q', arguments: { region: 'eu', opts: { dry: false }, ratio: 0.5, bad: 'x' } });
+    c.applyModernMeta(b);
+    const h = c.modernHeaders(b);
+    assert.equal(h['MCP-Protocol-Version'], '2026-07-28');
+    assert.equal(h['Mcp-Method'], 'tools/call');
+    assert.equal(h['Mcp-Name'], 'q');
+    assert.equal(h['Mcp-Param-Region'], 'eu');
+    assert.equal(h['Mcp-Param-Dry'], 'false');
+    assert.ok(!('Mcp-Param-Ratio' in h), 'non-integer numbers are not mirrored');
+    assert.ok(!('Mcp-Param-has space' in h), 'invalid header names are skipped');
+    assert.equal(c.modernHeaders(c.buildBody('resources/read', { uri: 'docs://x' }))['Mcp-Name'], 'docs://x');
+    assert.ok(!('Mcp-Name' in c.modernHeaders(c.buildBody('tools/list', {}))));
+  });
+
+  test('only protocol-reserved error codes count as modern', () => {
+    assert.equal(c.isModernError({ error: { code: -32022 } }), true);
+    assert.equal(c.isModernError({ error: { code: -32020 } }), true);
+    assert.equal(c.isModernError({ error: { code: -32000, message: 'No valid session ID' } }), false);
+    assert.equal(c.isModernError({ raw: '' }), false);
+  });
+
+  test('version picking from an UnsupportedProtocolVersion list', () => {
+    assert.equal(c.pickVersion(['2027-01-01', '2026-07-28'], c.MODERN_VERSIONS), '2026-07-28');
+    assert.equal(c.pickVersion(['2027-01-01'], c.MODERN_VERSIONS), null);
+    assert.equal(c.pickVersion(['2026-07-28', '2025-06-18'], null), '2025-06-18');
   });
 });

@@ -119,12 +119,12 @@ function doProbe() {
   var mode = sel ? sel.value : 'auto';
   if (sel) diag.probeMethod = mode;
   var method;
-  if (mode === 'auto') method = (state.connected && state.sessionId) ? 'tools/list' : 'initialize';
+  if (mode === 'auto') method = state.connected ? 'tools/list' : 'initialize';
   else method = mode;
 
   var params = {};
   if (method === 'initialize') {
-    params = { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'MCP Tester probe', version: '5.0.0' } };
+    params = { protocolVersion: LEGACY_VERSION, capabilities: {}, clientInfo: { name: 'MCP Tester probe', version: CLIENT_INFO.version } };
   }
   rpc(method, params, 'probe');
 }
@@ -149,7 +149,7 @@ function renderDiagnostics() {
   }
   h += '</select></div>';
   h += '<div class="control-group">Method<select id="probeMethod">';
-  var pm = [['auto','Auto'],['initialize','initialize'],['tools/list','tools/list']];
+  var pm = [['auto','Auto'],['server/discover','server/discover'],['initialize','initialize'],['tools/list','tools/list']];
   for (var j = 0; j < pm.length; j++) {
     h += '<option value="' + pm[j][0] + '"' + (diag.probeMethod === pm[j][0] ? ' selected' : '') + '>' + pm[j][1] + '</option>';
   }

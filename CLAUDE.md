@@ -38,7 +38,7 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 
 ## Decisions already made (don't relitigate without the owner)
 
-- **Transport is Streamable HTTP only.** The old "SSE" option was removed because it was not a faithful legacy HTTP+SSE client (the old two-endpoint handshake: GET stream, then an `endpoint` event). Streamable HTTP already accepts JSON or event-stream responses. stdio is out of scope: a hosted or browser app can't spawn local processes.
+- **Transport is Streamable HTTP only.** The old "SSE" option was removed because it was not a faithful legacy HTTP+SSE client (the old two-endpoint handshake: GET stream, then an `endpoint` event). Streamable HTTP already accepts JSON or event-stream responses. stdio is out of scope: a hosted or browser app can't spawn local processes. The client is dual-era: it tries the 2026-07-28 stateless protocol first and falls back to the legacy `initialize` handshake (see roadmap item 2).
 - **Proxy behaviour:** `Accept: application/json, text/event-stream` is enforced server-side, because HSBC returns 406 otherwise. Notifications (`notifications/*`) carry no JSON-RPC `id`. Retries default to 0, so real failures stay visible. Transport failures return HTTP 200 with envelope `status: 0`, so the UI can always read the diagnostics.
 - **Diagnostics timeline uses THREE states** (ok / slow / failed). Four were tried: the warning and serious status colours measured ΔE 13.6, below the legibility floor. Failure *kind* lives in tooltips and the breakdown table instead.
 - **Latency chart:** lines break across failures. A lone success between failures renders as a dot; otherwise it would be invisible, and those are exactly the interesting samples.
@@ -48,15 +48,20 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 ## Roadmap (agreed order)
 
 1. ~~Repo + shared core~~ (done, v0.8.0)
-2. **Authentication (next).** Implement MCP authorization per spec 2025-11-25:
-   - On 401, read `WWW-Authenticate` → protected resource metadata (RFC 9728) → authorization server metadata → register the client. Client ID Metadata Documents are preferred; dynamic client registration is the fallback. Then OAuth 2.1 auth code + PKCE with a redirect.
+2. ~~Dual-era protocol~~ (done, v0.9.0). The client speaks spec 2026-07-28 (stateless: `server/discover`, per-request `_meta`, `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` / `Mcp-Param-*` headers). It falls back to the `initialize` handshake (offering 2025-11-25) when the server answers discover with an HTTP error that is not a recognised modern error (-32020/-32021/-32022). A transport failure does not trigger fallback. The expected fallback error is logged, but not counted as a failure in diagnostics. Mock server: `/modern` (modern only) and `/dual` (both eras); the other paths stay legacy.
+3. **Authentication (next).** Implement MCP authorization per spec 2026-07-28:
+   - On 401, read `WWW-Authenticate` → protected resource metadata (RFC 9728) → authorization server metadata → register the client. Client ID Metadata Documents are preferred. Dynamic client registration is **deprecated** in 2026-07-28, but stays as the fallback for authorization servers without CIMD. When using DCR, send `application_type`. Then OAuth 2.1 auth code + PKCE with a redirect.
+   - Validate `iss` in the authorization response against the recorded issuer before redeeming the code (RFC 9207, SEP-2468).
+   - Key any stored client credentials by issuer. Never reuse them with a different authorization server; re-register when the authorization server changes (SEP-2352).
    - Log each discovery step: that's where servers break.
    - Manual modes: bearer, API-key header, client credentials (token endpoint), auth code + redirect.
-   - Callbacks: `/oauth/callback` on the Worker, localhost on the Node host. The Worker can host a CIMD document at a public URL; the local host can't, so it falls back to DCR or a pre-registered client ID.
-3. Log-driven hints. Rules first, not AI: 400 "no valid session" → initialise; 406 → Accept; 401 → sign in; 404 on a live session → reconnect; -32602 → jump to the field. Plus replay, edit & resend, copy as cURL, `{{variables}}`, collections. Stay MCP-shaped: not a general REST client.
-4. Docker image for the Node host. Container binds 0.0.0.0, so `MCP_TESTER_ALLOWED_HOSTS` matters.
-5. Signed Mac and Windows builds. Prefer Tauri or a small single binary over Electron. Code signing is the real blocker: Apple Developer ID + notarization; a Windows signing certificate.
-6. Agent playground: an OpenAI-compatible endpoint (Ollama :11434, LM Studio :1234) acting as an MCP host. Framed as a test of tool-description quality using small (~8B) models. Belongs mainly in the local build.
+   - Callbacks: `/oauth/callback` on the Worker, localhost on the Node host. The Worker can host a CIMD document at a public URL; the local host can't, so it falls back to DCR (deprecated) or a pre-registered client ID.
+4. Spec compliance check. Rule-based pass / warn / fail checks, keyed to the version the server claims to support. Examples: `resultType` on every result; `ttlMs` + `cacheScope` on list results; a bogus version → 400 with -32022 and a `supported` list; unknown method → 404 with -32601; deterministic `tools/list` order; tool schemas valid JSON Schema 2020-12 with resolvable `$ref`s; valid `x-mcp-header` annotations; `serverInfo` in the result `_meta`; deprecated features still advertised (Roots, Sampling, Logging, HTTP+SSE). Give each check a matching failure mode in the mock server.
+5. Log-driven hints. Rules first, not AI. Legacy servers: 400 "no valid session" → initialise; 404 on a live session → reconnect. Modern servers: -32020 → show the mismatched header; -32022 → offer the listed versions. Both: 406 → Accept; 401 → sign in; -32602 → jump to the field. Also add a connection flow diagram: an inline SVG sequence diagram (discover/initialize → auth steps → list → call) using the three-state colours, plus a "Copy as Mermaid" button so it pastes into GitHub issues and Markdown, where it renders natively. Don't bundle Mermaid.js: it's large, and loading it from a CDN would break offline use inside company networks. Plus replay, edit & resend, copy as cURL, `{{variables}}`, collections. Stay MCP-shaped: not a general REST client.
+   - Not yet implemented from 2026-07-28: MRTR (`resultType: "input_required"` → `inputResponses` retry), `subscriptions/listen`, per-request `logLevel`, the tasks extension.
+6. Docker image for the Node host. Container binds 0.0.0.0, so `MCP_TESTER_ALLOWED_HOSTS` matters.
+7. Signed Mac and Windows builds. Prefer Tauri or a small single binary over Electron. Code signing is the real blocker: Apple Developer ID + notarization; a Windows signing certificate.
+8. Agent playground: an OpenAI-compatible endpoint (Ollama :11434, LM Studio :1234) acting as an MCP host. Framed as a test of tool-description quality using small (~8B) models. Belongs mainly in the local build.
 
 ## Working agreements
 

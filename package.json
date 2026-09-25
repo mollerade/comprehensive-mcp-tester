@@ -1,6 +1,6 @@
 {
   "name": "mcp-tester",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A browser-based MCP (Model Context Protocol) client for testing and diagnosing MCP servers. Runs on Cloudflare Workers or locally.",
   "type": "module",
   "private": true,

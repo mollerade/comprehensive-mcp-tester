@@ -31,6 +31,8 @@ Try it against the bundled mock server:
 npm run mock            # http://127.0.0.1:8788/mcp   (plus /slow /hang /fail /stream)
 ```
 
+`/mcp` and the failure paths behave like a pre-2026 server (with an `initialize` handshake and sessions). `/modern` speaks only the stateless 2026-07-28 protocol, and `/dual` speaks both. The tester works out which one it's talking to. The status pill tooltip shows the protocol version and whether the connection is stateless or legacy.
+
 | Variable | Where | Meaning |
 |---|---|---|
 | `ALLOWED_ORIGINS` | both | Comma-separated MCP hosts the proxy may reach, e.g. `developer.hsbc.com`. Empty means any. |
@@ -68,7 +70,7 @@ Edit files in `src/`, never in `dist/`. The build checks its own output before w
 
 ## Tests
 
-`npm test` runs 88 tests with Node's built-in runner:
+`npm test` runs 100 tests with Node's built-in runner:
 
 - **proxy**: the core against a mock server. Covers timing, timeouts, retries with backoff, network failures, Accept repair, header filtering and the allowlist.
 - **hosts**: both Cloudflare bundles, executed as built, and the local server, including its security checks.
@@ -84,9 +86,11 @@ The e2e suite skips itself if Chromium isn't installed (`npx playwright install 
 
 ## Roadmap
 
-1. ~~Repository and shared core~~ (this release)
-2. Authentication: MCP OAuth discovery (protected resource metadata, CIMD/DCR, PKCE), plus bearer, API key and client credentials
-3. Log-driven hints ("401 → sign in", "400 no session → initialise"), replay, copy as cURL, variables, collections
-4. Docker image for the local server
-5. Signed Mac and Windows builds
-6. Agent playground: connect a local model (Ollama / LM Studio) to test how well tool descriptions work
+1. ~~Repository and shared core~~ (0.8.0)
+2. ~~Speaks both the 2026-07-28 stateless protocol and the older `initialize` handshake~~ (0.9.0)
+3. Authentication: MCP OAuth discovery (protected resource metadata, CIMD, DCR fallback, PKCE, `iss` check), plus bearer, API key and client credentials
+4. Spec compliance check: pass / warn / fail against the protocol version the server claims
+5. Log-driven hints, a connection flow diagram (exportable as Mermaid for GitHub), replay, copy as cURL, variables, collections
+6. Docker image for the local server
+7. Signed Mac and Windows builds
+8. Agent playground: connect a local model (Ollama / LM Studio) to test how well tool descriptions work

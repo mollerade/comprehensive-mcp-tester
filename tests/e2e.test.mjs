@@ -57,6 +57,15 @@ test('connects through the real proxy and shows server identity', { skip }, asyn
   assert.equal(await page.evaluate(() => window.state.tools.length), 3);
 });
 
+test('legacy server: modern discover is tried first, then the initialize handshake', { skip }, async () => {
+  const discover = lastCall('server/discover');
+  assert.equal(discover.headers['mcp-method'], 'server/discover');
+  assert.equal(lastCall('initialize').body.params.protocolVersion, '2025-11-25');
+  assert.equal(await page.evaluate(() => window.state.era), 'legacy');
+  assert.equal(await page.evaluate(() => window.diag.probes.filter((p) => p.method === 'server/discover').length), 0,
+    'the expected fallback is not counted as a failure');
+});
+
 test('handshake: initialized notification sent without an id, session id reused', { skip }, async () => {
   const note = lastCall('notifications/initialized');
   assert.ok(note && !('id' in note.body));
@@ -220,6 +229,44 @@ test('a hanging server fails the connection with a timeout', { skip }, async () 
   await page.waitForFunction(() => document.getElementById('statusText').textContent === 'Failed', null, { timeout: 5000 });
   const probe = await page.evaluate(() => window.diag.probes[window.diag.probes.length - 1]);
   assert.equal(probe.errorType, 'timeout');
+});
+
+test('2026-07-28 server: stateless, with _meta and mirrored headers on every request', { skip }, async () => {
+  await page.fill('#timeoutInput', '15000');
+  await page.fill('#urlInput', mock.base + '/modern');
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  assert.match(await page.textContent('#statusText'), /mock-mcp 1\.0\.0/);
+  assert.equal(await page.evaluate(() => window.state.era), 'modern');
+  assert.match(await page.getAttribute('#statusPill', 'title'), /2026-07-28 · stateless/);
+  assert.equal(await page.evaluate(() => window.state.tools.length), 3);
+  const modernCalls = mock.calls.filter((c) => c.path === '/modern');
+  assert.ok(!modernCalls.some((c) => c.body.method === 'initialize' || c.body.method.startsWith('notifications/')));
+  assert.ok(!modernCalls.some((c) => c.headers['mcp-session-id']));
+
+  await page.click('.tab-btn[data-tab="tools"]');
+  await page.locator('.item-card').first().click();
+  await page.waitForSelector('#param-0-category');
+  await page.fill('#param-0-category', 'accounts');
+  await page.click('#invoke-0');
+  await waitDraftRes();
+  const call = lastCall('tools/call');
+  assert.equal(call.path, '/modern');
+  assert.equal(call.headers['mcp-protocol-version'], '2026-07-28');
+  assert.equal(call.headers['mcp-name'], 'list_account_information_apis');
+  assert.equal(call.headers['mcp-param-category'], 'accounts');
+  assert.equal(call.body.params._meta['io.modelcontextprotocol/protocolVersion'], '2026-07-28');
+  assert.match(await page.textContent('#rr-tool-0 .rr-res'), /"resultType": "complete"/);
+  await page.click('#connectBtn');   // disconnect
+});
+
+test('dual-era server is spoken to in the modern protocol', { skip }, async () => {
+  await page.fill('#urlInput', mock.base + '/dual');
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  assert.equal(await page.evaluate(() => window.state.era), 'modern');
+  assert.ok(!mock.calls.some((c) => c.path === '/dual' && c.body.method === 'initialize'));
+  await page.click('#connectBtn');
 });
 
 test('no horizontal overflow at phone width', { skip }, async () => {
