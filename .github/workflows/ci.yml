@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Upload build (worker.js to paste into Cloudflare, worker.mjs, index.html)
+        if: matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-tester-dist
+          path: dist/

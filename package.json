@@ -1,0 +1,24 @@
+{
+  "name": "mcp-tester",
+  "version": "0.8.0",
+  "description": "A browser-based MCP (Model Context Protocol) client for testing and diagnosing MCP servers. Runs on Cloudflare Workers or locally.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "mcp-tester": "src/hosts/node-server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node src/hosts/node-server.js",
+    "dev": "node --watch src/hosts/node-server.js",
+    "mock": "node tests/fixtures/mock-mcp-server.mjs",
+    "test": "node --test",
+    "deploy": "npm run build && npx wrangler deploy"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

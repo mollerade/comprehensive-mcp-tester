@@ -1,0 +1,8 @@
+# Deploy with: npm run deploy   (builds, then `npx wrangler deploy`)
+name = "mcp-tester"
+main = "dist/worker.mjs"
+compatibility_date = "2025-09-01"
+
+# Restrict which MCP servers this Worker may proxy to (recommended):
+# [vars]
+# ALLOWED_ORIGINS = "developer.hsbc.com"

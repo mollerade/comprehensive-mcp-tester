@@ -1,0 +1,157 @@
+/**
+ * Host adapters: the built Cloudflare bundles and the local Node server.
+ */
+import { test, before, after, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { build } from '../scripts/build.mjs';
+import { assembleHtml } from '../src/ui/assemble.js';
+import { createServer } from '../src/hosts/node-server.js';
+import { startMockServer } from './fixtures/mock-mcp-server.mjs';
+
+let mock;
+before(async () => { mock = await startMockServer(); });
+after(async () => { await mock.close(); });
+
+const initPayload = (url) => JSON.stringify({
+  url, timeoutMs: 3000,
+  headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+  body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', id: 1, params: {} }),
+});
+
+describe('Cloudflare Service Worker bundle (dist/worker.js)', () => {
+  let handler;
+  const load = (globals = {}) => {
+    const { sw } = build({ write: false });
+    const ctx = vm.createContext({
+      addEventListener: (type, fn) => { if (type === 'fetch') handler = fn; },
+      Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console,
+      ...globals,
+    });
+    vm.runInContext(sw, ctx, { filename: 'worker.js' });
+  };
+  const dispatch = (request) => new Promise((resolve) => handler({ request, respondWith: (p) => resolve(p) }));
+
+  test('registers a fetch handler and serves the UI at /', async () => {
+    load();
+    const res = await dispatch(new Request('https://w.dev/'));
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    assert.equal(await res.text(), assembleHtml());
+  });
+
+  test('POST /proxy reaches an MCP server', async () => {
+    load();
+    const res = await dispatch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }));
+    const env = await res.json();
+    assert.equal(env.status, 200);
+    assert.ok(env.headers['mcp-session-id']);
+    assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  });
+
+  test('invalid JSON → 400, unknown path → 404, OPTIONS → 204', async () => {
+    load();
+    assert.equal((await dispatch(new Request('https://w.dev/proxy', { method: 'POST', body: '{nope' }))).status, 400);
+    assert.equal((await dispatch(new Request('https://w.dev/nope'))).status, 404);
+    assert.equal((await dispatch(new Request('https://w.dev/proxy', { method: 'OPTIONS' }))).status, 204);
+  });
+
+  test('ALLOWED_ORIGINS global restricts targets', async () => {
+    load({ ALLOWED_ORIGINS: 'developer.hsbc.com' });
+    const res = await dispatch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }));
+    assert.equal(res.status, 403);
+  });
+});
+
+describe('Cloudflare module bundle (dist/worker.mjs)', () => {
+  test('default export fetch() serves UI and proxies, honouring env.ALLOWED_ORIGINS', async () => {
+    const { mod } = build({ write: false });
+    const file = join(mkdtempSync(join(tmpdir(), 'mcpt-')), 'worker.mjs');
+    writeFileSync(file, mod);
+    const worker = (await import(pathToFileURL(file).href)).default;
+    const page = await worker.fetch(new Request('https://w.dev/'), {});
+    assert.equal(await page.text(), assembleHtml());
+    const ok = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), {});
+    assert.equal((await ok.json()).status, 200);
+    const blocked = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), { ALLOWED_ORIGINS: 'x.com' });
+    assert.equal(blocked.status, 403);
+  });
+});
+
+describe('Local Node server', () => {
+  let server, base;
+  before(async () => {
+    server = createServer({ allowedOrigins: '', allowedHosts: '' });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${server.address().port}`;
+  });
+  after(() => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }));
+
+  const post = (body, headers = {}) => fetch(base + '/proxy', {
+    method: 'POST', body, headers: { 'Content-Type': 'application/json', ...headers },
+  });
+
+  test('serves the assembled UI with no-store', async () => {
+    const res = await fetch(base + '/');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal(await res.text(), assembleHtml());
+  });
+
+  test('proxies to an MCP server and reports colo "local"', async () => {
+    const env = await (await post(initPayload(mock.url))).json();
+    assert.equal(env.status, 200);
+    assert.equal(env.diag.colo, 'local');
+  });
+
+  test('same-origin Origin header is accepted', async () => {
+    const res = await post(initPayload(mock.url), { Origin: base });
+    assert.equal(res.status, 200);
+  });
+
+  test('security: foreign Origin → 403', async () => {
+    const res = await post(initPayload(mock.url), { Origin: 'https://evil.example' });
+    assert.equal(res.status, 403);
+  });
+
+  test('security: non-JSON content type → 415 (blocks simple cross-site form posts)', async () => {
+    const res = await fetch(base + '/proxy', { method: 'POST', body: initPayload(mock.url), headers: { 'Content-Type': 'text/plain' } });
+    assert.equal(res.status, 415);
+  });
+
+  test('security: unrecognised Host header → 421 (DNS rebinding)', async () => {
+    const http = await import('node:http');
+    const status = await new Promise((resolve, reject) => {
+      const req = http.request(base + '/', { headers: { Host: 'attacker.example:8787' } }, (res) => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject); req.end();
+    });
+    assert.equal(status, 421);
+  });
+
+  test('security: preflight gets no CORS grant', async () => {
+    const res = await fetch(base + '/proxy', { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } });
+    assert.equal(res.headers.get('access-control-allow-origin'), null);
+  });
+
+  test('oversized body → 413; invalid JSON → 400; unknown path → 404', async () => {
+    assert.equal((await post('x'.repeat(1024 * 1024 + 10))).status, 413);
+    assert.equal((await post('{nope')).status, 400);
+    assert.equal((await fetch(base + '/nope')).status, 404);
+  });
+
+  test('extra allowed hosts can be configured', async () => {
+    const s2 = createServer({ allowedHosts: 'mcp-tester.internal' });
+    await new Promise((r) => s2.listen(0, '127.0.0.1', r));
+    const http = await import('node:http');
+    const status = await new Promise((resolve, reject) => {
+      const req = http.request(`http://127.0.0.1:${s2.address().port}/`, { headers: { Host: 'mcp-tester.internal:8787' } }, (res) => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject); req.end();
+    });
+    await new Promise((r) => s2.close(r));
+    assert.equal(status, 200);
+  });
+});
