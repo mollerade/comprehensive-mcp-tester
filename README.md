@@ -93,12 +93,13 @@ Edit files in `src/`, never in `dist/`. The build checks its own output before w
 
 ## Tests
 
-`npm test` runs 143 tests with Node's built-in runner:
+`npm test` runs 154 tests with Node's built-in runner:
 
 - **proxy**: the core against a mock server. Covers timing, timeouts, retries with backoff, network failures, Accept repair, header filtering and the allowlist. It also covers the mock server's scenario registry: discovery, the original paths as aliases, parallel instances, the delay knob, and that each violation scenario breaks the rule it names.
 - **hosts**: both Cloudflare bundles, executed as built, and the local server, including its security checks.
 - **ui-logic**: the shipped client JS in a VM. Covers the percentile and uptime maths, flap streaks, schema-based request suggestions and JSON-RPC ids.
 - **e2e**: Chromium drives the real UI through the local server to the mock MCP server. Covers both protocol eras, OAuth sign-in (pop-up and redirect), the `iss` mix-up rejection, client credentials, connect, filter, suggested requests, form and JSON execution, error responses, resources, prompts, log, diagnostics, theme, saved servers, timeouts and phone-width layout.
+- **compliance**: the spec compliance rule engine (`src/core/compliance/`), which grades recorded exchanges against the protocol version a server claims. Covers the catalogue format, rule selection by version, best effort for unknown versions, error isolation and determinism.
 - **tooling**: the repository's own scripts, such as the traceability checker, run as real processes against throwaway fixture trees.
 
 Acceptance criteria live as tagged Gherkin scenarios in `docs/acceptance/v<milestone>/<ISSUE-KEY>.feature` (for example `@AC-QA-TRACE-01`). A test covers one when its title starts with the ID: `test('AC-QA-TRACE-01: covered AC passes', ...)`. `npm run test:trace` fails on a criterion with no test, a test naming an unknown criterion, a duplicated ID, or an `@pending` criterion still untested once `package.json` reaches its milestone; `--format=json` prints the same report as JSON.
