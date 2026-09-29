@@ -27,6 +27,9 @@ jobs:
 
       - run: npm test
 
+      - name: Every acceptance criterion has a test
+        run: npm run test:trace
+
       - run: npm run build
 
       - name: Upload build (worker.js to paste into Cloudflare, worker.mjs, index.html)
