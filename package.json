@@ -17,6 +17,7 @@
     "mock": "node tests/fixtures/mock-mcp-server.mjs",
     "test": "node --test",
     "test:trace": "node scripts/check-traceability.mjs",
+    "check:readme": "node scripts/check-readme.mjs",
     "deploy": "npm run build && npx wrangler deploy"
   },
   "devDependencies": {
