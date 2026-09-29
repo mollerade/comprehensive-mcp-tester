@@ -8,7 +8,7 @@
     "mcp-tester": "src/hosts/node-server.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
