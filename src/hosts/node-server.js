@@ -22,6 +22,7 @@
  */
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
 import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
 import { assembleHtml } from '../ui/assemble.js';
@@ -139,8 +140,16 @@ export function createServer(opts = {}) {
   });
 }
 
-// Run directly: node src/hosts/node-server.js
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/* Run directly: node src/hosts/node-server.js. Node resolves import.meta.url
+   through symlinks but leaves argv[1] as typed, so compare real paths, or a
+   checkout or install under a symlinked directory would silently not start. */
+function isMain() {
+  if (!process.argv[1]) return false;
+  try { return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href; }
+  catch { return false; }
+}
+
+if (isMain()) {
   const port = parseInt(process.env.PORT || '8787', 10);
   const host = process.env.HOST || '127.0.0.1';
   const server = createServer();
@@ -151,7 +160,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   });
   server.listen(port, host, () => {
     const shown = host === '0.0.0.0' ? 'localhost' : host;
-    console.log(`MCP Tester running at http://${shown}:${port}`);
+    console.log(`MCP Tester running at http://${shown}:${server.address().port}`);
     if (process.env.ALLOWED_ORIGINS) console.log(`Proxy restricted to: ${process.env.ALLOWED_ORIGINS}`);
   });
 }

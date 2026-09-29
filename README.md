@@ -24,7 +24,7 @@
 
 **Getting started**
 
-- [Install](#install) — hosted on Cloudflare (no tools), with Wrangler, or as a local Node server
+- [Install](#install) — hosted on Cloudflare (no tools), with Wrangler, as a local Node server, or as an installed command
 - [Requirements](#requirements) — toolchain floor, platforms
 - [Quick Start](#quick-start) — run the tester against the bundled mock server in two commands
 
@@ -70,6 +70,14 @@ npm run deploy          # builds, then `wrangler deploy` using wrangler.toml
 ```sh
 npm install
 npm start               # http://127.0.0.1:8787
+```
+
+**As a command**, from a checkout:
+
+```sh
+make install            # installs `mcp-tester` into /usr/local (PREFIX=... and DESTDIR=... honoured)
+mcp-tester              # http://127.0.0.1:8787
+make uninstall
 ```
 
 The local server is the version to use inside company networks: nothing leaves your machine except the calls to the MCP server itself.
@@ -197,14 +205,14 @@ The bundled mock server (`npm run mock`) is the example set. Point the tester at
 ## Development
 
 ```bash
-npm run dev             # local server; restarts on core/host changes, UI edits show on reload
-npm test                # all suites
-npm run test:trace      # every acceptance criterion has a test, and every AC-titled test has a criterion
-npm run build           # regenerate dist/
-npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
+make check              # every suite, the traceability check, the README check and the build: the offline CI gate
+make dev                # local server; restarts on core/host changes, UI edits show on reload
+make lint               # markdownlint and codespell
+make mock               # mock MCP server on http://127.0.0.1:8788/mcp
+make help               # every target; each wraps an npm script, so npm run ... works too
 ```
 
-Edit `src/`, never `dist/`. The build checks its own output before writing: the HTML must round-trip exactly, `worker.js` must parse, and no module syntax may remain in the paste-able file. There is no `Makefile` yet ([#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52)) and no fuzzing.
+Edit `src/`, never `dist/`. The build checks its own output before writing: the HTML must round-trip exactly, `worker.js` must parse, and no module syntax may remain in the paste-able file. There is no fuzzing yet.
 
 CI runs the tests, the traceability check and the build on Node 22 and 24, and a docs lint (markdownlint, codespell and a README structure check). [`DEVELOPMENT.md`](DEVELOPMENT.md) covers setup, the test suites, acceptance criteria and how to reproduce every CI gate locally.
 

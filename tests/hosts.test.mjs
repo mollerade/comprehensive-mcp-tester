@@ -4,7 +4,8 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, cpSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -209,4 +210,37 @@ test('the compliance engine runs unchanged inside the Worker bundle', () => {
   assert.equal(report.bestEffort, true);
   assert.equal(report.verdict, 'warn');
   assert.equal(report.results.find((r) => r.id === 'MCP-VER-001').status, 'warn');
+});
+
+/** Run node-server.js from `serverPath` with PORT=0; resolves with its announced URL */
+function runServer(serverPath) {
+  const child = spawn(process.execPath, [serverPath], { env: { ...process.env, PORT: '0', HOST: '127.0.0.1' } });
+  return new Promise((resolve, reject) => {
+    let out = '';
+    const timer = setTimeout(() => { child.kill(); reject(new Error('no startup line: ' + out)); }, 10000);
+    child.stdout.on('data', (c) => {
+      out += c;
+      const m = /running at (http:\/\/\S+)/.exec(out);
+      if (m) { clearTimeout(timer); resolve({ child, url: m[1] }); }
+    });
+    child.on('exit', (code) => { clearTimeout(timer); reject(new Error('server exited ' + code + ' without starting: ' + (out || '(no output)'))); });
+  });
+}
+
+test('the local server starts when run through a symlinked path, and announces its real port', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'symlinked-'));
+  try {
+    cpSync(join(ROOT_DIR, 'src'), join(dir, 'real', 'src'), { recursive: true });
+    cpSync(join(ROOT_DIR, 'package.json'), join(dir, 'real', 'package.json'));
+    symlinkSync(join(dir, 'real'), join(dir, 'link'), 'dir');
+    const { child, url } = await runServer(join(dir, 'link', 'src', 'hosts', 'node-server.js'));
+    try {
+      assert.doesNotMatch(url, /:0$/, 'announced port 0 instead of the bound port');
+      assert.equal((await fetch(url + '/')).status, 200);
+    } finally {
+      child.kill();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
