@@ -18,7 +18,7 @@ The standard is applied in six phases, one per release. This page records where 
 | 2 | Documentation | 2 | 8 | External links not checked; migration guides not applicable |
 | 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
 | 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
-| 5 | Packaging and distribution | 1 | 1 | Packaging notes, container image [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55), [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
+| 5 | Packaging and distribution | 1 | 5 | Licence (#51) blocks redistribution; container image [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
 | 6 | CI quality gates | 5 | 5 | JavaScript lint and complexity gate [#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43); e2e reports [#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6) |
 | 7 | Supply chain and security | 1 | 4 | Pinned actions, Scorecard, audit in CI [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) |
 | 8 | Community and governance | 2 | 5 | Governance, support, citation, devcontainer [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) |
@@ -69,7 +69,10 @@ The standard is applied in six phases, one per release. This page records where 
 
 ### 5. Packaging and distribution
 
-- **Missing:** packaging notes (#55) and a container image, which is roadmap item 6 (#23).
+- **Has:**
+  - `docs/packaging.md` for repackagers: the two shapes, toolchain, the no-runtime-dependency model, offline build and tests, install layout, and how to verify a build.
+  - A reproducible build, checked in CI on every push: the same commit gives byte-identical files on Linux and macOS, with Node 22 and 24.
+- **Missing:** a licence to redistribute under (#51), and a container image, which is roadmap item 6 (#23).
 - **Not applicable yet:**
   - deb, rpm, AUR, Homebrew and Nix packages, and Repology tracking. The product is a web page plus a small server; revisit with the desktop builds (#26).
   - C-FFI.
@@ -120,5 +123,5 @@ The standard is applied in six phases, one per release. This page records where 
 | 2 | Makefile and install UX | [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) | Done |
 | 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Done |
 | 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Open |
-| 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Open |
+| 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Done |
 | 6 | Polish: Scorecard, pinned actions, devcontainer, governance files | [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) | Open |

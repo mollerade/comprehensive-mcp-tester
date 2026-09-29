@@ -72,6 +72,7 @@ nav:
       - Contributing: CONTRIBUTING.md
       - Acceptance criteria: docs/acceptance/README.md
       - Policies: docs/POLICIES.md
+      - Packaging: docs/packaging.md
       - Repository standard: docs/STANDARDS.md
   - Security: SECURITY.md
   - Code of conduct: CODE_OF_CONDUCT.md

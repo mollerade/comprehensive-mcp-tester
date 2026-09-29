@@ -32,6 +32,12 @@ jobs:
 
       - run: make build
 
+      - name: The build is reproducible
+        run: |
+          (cd dist && sha256sum index.html worker.js worker.mjs) > "$RUNNER_TEMP/first.sha256"
+          mkdir "$RUNNER_TEMP/again" && git archive HEAD | tar -x -C "$RUNNER_TEMP/again"
+          (cd "$RUNNER_TEMP/again" && node scripts/build.mjs > /dev/null && cd dist && sha256sum --check "$RUNNER_TEMP/first.sha256")
+
       - name: Staged install puts the mcp-tester command in place
         run: |
           make DESTDIR="$RUNNER_TEMP/stage" install

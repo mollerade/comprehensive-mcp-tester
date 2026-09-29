@@ -248,7 +248,7 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 - **Developer docs:** [`DEVELOPMENT.md`](DEVELOPMENT.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Ecosystem map:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and the decisions behind it in [`docs/adr/`](docs/adr/README.md).
 - **Roadmap:** [`ROADMAP.md`](ROADMAP.md). **Changes:** [`CHANGELOG.md`](CHANGELOG.md).
-- **Policies:** [`docs/POLICIES.md`](docs/POLICIES.md) (toolchain floor, versioning). **Repository standard:** [`docs/STANDARDS.md`](docs/STANDARDS.md).
+- **Policies:** [`docs/POLICIES.md`](docs/POLICIES.md) (toolchain floor, versioning). **Packaging:** [`docs/packaging.md`](docs/packaging.md), for anyone repackaging the tool. **Repository standard:** [`docs/STANDARDS.md`](docs/STANDARDS.md).
 - **Acceptance criteria:** [`docs/acceptance/`](docs/acceptance/README.md).
 
 ---
