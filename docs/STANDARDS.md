@@ -16,7 +16,7 @@ The standard is applied in six phases, one per release. This page records where 
 | :--- | :--- | :---: | :---: | :--- |
 | 1 | Identity and README | 3 | 6 | Licence [#51](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51); CI-checked install snippets |
 | 2 | Documentation | 2 | 4 | Rendered manual, ADRs, link check [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) |
-| 3 | Build and install UX | 4 | 4 | Makefile, install contract [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) |
+| 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
 | 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
 | 5 | Packaging and distribution | 1 | 1 | Packaging notes, container image [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55), [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
 | 6 | CI quality gates | 5 | 5 | JavaScript lint and complexity gate [#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43); e2e reports [#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6) |
@@ -50,7 +50,8 @@ The standard is applied in six phases, one per release. This page records where 
 - **Has:**
   - The native npm flow (`npm install`, `npm test`, `npm run build`, `npm start`).
   - A zero-dependency build that checks its own output.
-- **Missing:** a `Makefile` for dev tasks (#52).
+  - A `Makefile` wrapping the npm scripts (`make check` is the offline CI gate), and the install contract: `make install` / `make uninstall` honour `PREFIX`, `BINDIR`, `LIBDIR` and `DESTDIR`, and CI checks a staged install on every push. The installed command is tested end to end.
+- **Missing:** the README's install snippets are not exercised in CI.
 - **Not applicable:** manpages and shell completions, since there is no CLI with flags.
 
 ### 4. Releases
@@ -112,7 +113,7 @@ The standard is applied in six phases, one per release. This page records where 
 | Phase | Ships | Issue | State |
 | :--- | :--- | :--- | :--- |
 | 1 | Normalised layout: `docs/` root, `DEVELOPMENT.md`, community files, docs-lint CI | This change | Done |
-| 2 | Makefile and install UX | [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) | Open |
+| 2 | Makefile and install UX | [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) | Done |
 | 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Open |
 | 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Open |
 | 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Open |

@@ -30,7 +30,13 @@ jobs:
       - name: Every acceptance criterion has a test
         run: npm run test:trace
 
-      - run: npm run build
+      - run: make build
+
+      - name: Staged install puts the mcp-tester command in place
+        run: |
+          make DESTDIR="$RUNNER_TEMP/stage" install
+          test -x "$RUNNER_TEMP/stage/usr/local/bin/mcp-tester"
+          test -f "$RUNNER_TEMP/stage/usr/local/lib/mcp-tester/src/hosts/node-server.js"
 
       - name: Upload build (worker.js to paste into Cloudflare, worker.mjs, index.html)
         if: matrix.node == 24
