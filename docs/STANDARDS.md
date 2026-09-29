@@ -15,7 +15,7 @@ The standard is applied in six phases, one per release. This page records where 
 | # | Category | Before phase 1 | After phase 1 | Owner of the remaining gaps |
 | :--- | :--- | :---: | :---: | :--- |
 | 1 | Identity and README | 3 | 6 | Licence [#51](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51); CI-checked install snippets |
-| 2 | Documentation | 2 | 4 | Rendered manual, ADRs, link check [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) |
+| 2 | Documentation | 2 | 8 | External links not checked; migration guides not applicable |
 | 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
 | 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
 | 5 | Packaging and distribution | 1 | 1 | Packaging notes, container image [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55), [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
@@ -41,8 +41,12 @@ The standard is applied in six phases, one per release. This page records where 
 
 ### 2. Documentation
 
-- **Has:** `docs/` as the single documentation root, `DEVELOPMENT.md`, `docs/ARCHITECTURE.md`, `docs/POLICIES.md`, `ROADMAP.md`, `CHANGELOG.md`, acceptance criteria in `docs/acceptance/`.
-- **Missing:** a rendered manual, ADRs for the settled decisions, and a link check in CI (#53).
+- **Has:**
+  - `docs/` as the single documentation root, `DEVELOPMENT.md`, `docs/ARCHITECTURE.md`, `docs/POLICIES.md`, `ROADMAP.md`, `CHANGELOG.md`, acceptance criteria in `docs/acceptance/`.
+  - A rendered user manual built from those same files (MkDocs, pinned by hash) and published to GitHub Pages on each release tag.
+  - ADRs for the settled decisions in `docs/adr/`.
+  - Link checking in CI: every relative link and anchor (`make links`), and the manual's strict build.
+- **Missing:** external links are not checked.
 - **Not applicable:** migration guides from other tools.
 
 ### 3. Build and install UX
@@ -114,7 +118,7 @@ The standard is applied in six phases, one per release. This page records where 
 | :--- | :--- | :--- | :--- |
 | 1 | Normalised layout: `docs/` root, `DEVELOPMENT.md`, community files, docs-lint CI | This change | Done |
 | 2 | Makefile and install UX | [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) | Done |
-| 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Open |
+| 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Done |
 | 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Open |
 | 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Open |
 | 6 | Polish: Scorecard, pinned actions, devcontainer, governance files | [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) | Open |

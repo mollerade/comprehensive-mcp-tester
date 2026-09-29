@@ -1,0 +1,6 @@
+# The user manual is built with MkDocs and the Material theme, in CI and by
+# `make docs`; nothing here is a project dependency. Regenerate the pinned
+# requirements.txt after changing this file:
+#   pip-compile --generate-hashes --strip-extras docs/manual/requirements.in
+mkdocs==1.6.1
+mkdocs-material==9.7.7

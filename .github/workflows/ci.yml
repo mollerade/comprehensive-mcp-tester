@@ -58,6 +58,18 @@ jobs:
       - name: README follows the template layout
         run: npm run check:readme
 
+      - name: Every relative link and anchor resolves
+        run: npm run check:links
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: User manual builds with no warnings
+        run: |
+          pip install --require-hashes -r docs/manual/requirements.txt
+          make docs
+
       - name: Markdown style
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
@@ -67,4 +79,4 @@ jobs:
         uses: codespell-project/actions-codespell@e3258cca84ce02b0bb36a3d41f2c18f719a0cc1a # v2.4.3
         with:
           # The action ignores .codespellrc's skip list, so repeat it here
-          skip: ./node_modules,./dist,./package-lock.json,./.git
+          skip: ./node_modules,./dist,./build,./package-lock.json,./.git

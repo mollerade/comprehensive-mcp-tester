@@ -13,6 +13,7 @@ The `Makefile` wraps the npm scripts (`make help` lists every target), so either
 ```sh
 make check              # test + trace + readme + build: everything CI's test job checks, offline
 make lint               # markdownlint and codespell
+make docs               # the user manual in build/manual-site (needs: pip install --require-hashes -r docs/manual/requirements.txt)
 npm run dev             # local server on http://127.0.0.1:8787; restarts on core/host changes, UI edits show on reload
 npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
 npm test                # all suites
@@ -57,12 +58,14 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |
+| Docs lint | Every relative link and anchor in the Markdown resolves | `make links` |
+| Docs lint | The user manual builds in strict mode (a broken link or anchor fails it) | `make docs` |
 
-The docs-lint tools run in CI only; they are not project dependencies.
+The docs-lint tools and MkDocs run in CI only; they are not project dependencies. MkDocs is pinned by hash in `docs/manual/requirements.txt` ([ADR 0006](docs/adr/0006-manual-with-mkdocs.md)).
 
 ## Releases
 
-There is no release pipeline yet: versions 0.8.0 to 0.10.0 were not tagged, and CI uploads `dist/` as the `mcp-tester-dist` artifact on every run. Automated, signed releases are tracked in [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54). Record user-visible changes in [`CHANGELOG.md`](CHANGELOG.md) under `Unreleased` as you make them.
+The user manual is published to GitHub Pages by `.github/workflows/docs.yml` for each `v*` tag, or by hand from the Actions tab. There is no release pipeline yet: versions 0.8.0 to 0.10.0 were not tagged, and CI uploads `dist/` as the `mcp-tester-dist` artifact on every run. Automated, signed releases are tracked in [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54). Record user-visible changes in [`CHANGELOG.md`](CHANGELOG.md) under `Unreleased` as you make them.
 
 ## Deploying to Cloudflare by hand
 

@@ -214,7 +214,7 @@ make help               # every target; each wraps an npm script, so npm run ...
 
 Edit `src/`, never `dist/`. The build checks its own output before writing: the HTML must round-trip exactly, `worker.js` must parse, and no module syntax may remain in the paste-able file. There is no fuzzing yet.
 
-CI runs the tests, the traceability check and the build on Node 22 and 24, and a docs lint (markdownlint, codespell and a README structure check). [`DEVELOPMENT.md`](DEVELOPMENT.md) covers setup, the test suites, acceptance criteria and how to reproduce every CI gate locally.
+CI runs the tests, the traceability check and the build on Node 22 and 24, and a docs job: markdownlint, codespell, the README structure check, a check that every relative link and anchor resolves, and a strict build of the user manual. [`DEVELOPMENT.md`](DEVELOPMENT.md) covers setup, the test suites, acceptance criteria and how to reproduce every CI gate locally.
 
 ---
 
@@ -242,13 +242,13 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
 ## Documentation
 
-- **User manual:** not rendered yet ([#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53)); this README is the user guide for now.
+- **User manual:** <https://sebastienrousseau.com/comprehensive-mcp-tester/>, published from these files on each release (`make docs` builds it locally).
 - **API reference:** not applicable, as this is not a library. The one internal contract, the `/proxy` envelope, is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - **Developer docs:** [`DEVELOPMENT.md`](DEVELOPMENT.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- **Ecosystem map:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- **Ecosystem map:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and the decisions behind it in [`docs/adr/`](docs/adr/README.md).
 - **Roadmap:** [`ROADMAP.md`](ROADMAP.md). **Changes:** [`CHANGELOG.md`](CHANGELOG.md).
 - **Policies:** [`docs/POLICIES.md`](docs/POLICIES.md) (toolchain floor, versioning). **Repository standard:** [`docs/STANDARDS.md`](docs/STANDARDS.md).
-- **Acceptance criteria:** [`docs/acceptance/`](docs/acceptance/).
+- **Acceptance criteria:** [`docs/acceptance/`](docs/acceptance/README.md).
 
 ---
 

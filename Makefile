@@ -14,8 +14,10 @@ PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib/mcp-tester
 NPM ?= npm
+MKDOCS ?= mkdocs
+MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md
 
-.PHONY: all help deps build test trace readme check lint dev start mock clean install uninstall
+.PHONY: all help deps build test trace readme links check lint docs dev start mock clean install uninstall
 
 all: build
 
@@ -24,7 +26,9 @@ help:
 	@echo "make test       every test suite"
 	@echo "make trace      every acceptance criterion has a test"
 	@echo "make readme     README structure check"
-	@echo "make check      test + trace + readme + build: the offline CI gate"
+	@echo "make links      every relative link and anchor in the Markdown resolves"
+	@echo "make check      test + trace + readme + links + build: the offline CI gate"
+	@echo "make docs       the user manual in build/manual-site (needs: pip install -r docs/manual/requirements.txt)"
 	@echo "make lint       markdownlint and codespell (fetches markdownlint-cli2 with npx)"
 	@echo "make dev        local server that restarts on changes"
 	@echo "make start      local server on http://127.0.0.1:8787"
@@ -51,7 +55,10 @@ trace:
 readme:
 	@$(NPM) run check:readme
 
-check: test trace readme build
+links:
+	@node scripts/check-links.mjs
+
+check: test trace readme links build
 
 lint: readme
 	@npx --yes markdownlint-cli2 "**/*.md"
@@ -66,8 +73,18 @@ start:
 mock:
 	@$(NPM) run mock
 
+# The manual's chapters are the repository's own Markdown files, staged with
+# their paths intact so every relative link between them still resolves.
+docs:
+	@rm -rf build/manual-src
+	@mkdir -p build/manual-src
+	@cp $(MANUAL_PAGES) build/manual-src/
+	@cp -R docs build/manual-src/docs
+	@$(MKDOCS) build --strict -f docs/manual/mkdocs.yml
+	@echo "manual built in build/manual-site"
+
 clean:
-	@rm -rf dist
+	@rm -rf dist build
 
 # The server runs from its own directory with no runtime dependencies, so
 # installing is copying src/ and package.json (for "type": "module"). The
