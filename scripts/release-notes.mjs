@@ -2,7 +2,7 @@
 /**
  * Release notes — no dependencies, plain Node.
  *
- *   node scripts/release-notes.mjs --highlights=docs/releases/v0.10.1.md \
+ *   node scripts/release-notes.mjs --highlights=docs/releases/v0.0.1.md \
  *     --generated=generated.md --checksums=SHA256SUMS > notes.md
  *
  * Composes the GitHub release body in the project's fixed layout:

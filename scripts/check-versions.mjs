@@ -3,7 +3,7 @@
  * Version consistency — no dependencies, plain Node.
  *
  *   npm run check:versions                  every version reference agrees
- *   node scripts/check-versions.mjs --tag=v0.10.1   release mode, run before publishing
+ *   node scripts/check-versions.mjs --tag=v0.0.1    release mode, run before publishing
  *   ... --root=<dir>                        check another tree (tests use fixtures)
  *
  * Always: package.json, both version fields at the root of package-lock.json

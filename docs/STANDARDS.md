@@ -67,7 +67,7 @@ The standard is applied in six phases, one per release. This page records where 
   - `SHA256SUMS`, a CycloneDX SBOM, and Sigstore-signed build provenance and SBOM attestations for every file.
   - Release notes in a fixed layout, and an audit that reads the published release back.
 - **Missing:**
-  - A published release: 0.8.0 to 0.10.0 were never tagged, and 0.10.1 will be the first.
+  - A published release: 0.8.0 to 0.10.0 were never tagged or released, and 0.0.1 will be the first.
   - Native binaries, which are roadmap item 7 (#26).
 
 ### 5. Packaging and distribution
