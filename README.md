@@ -154,7 +154,7 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 Every sign-in step appears in a trace (ok / warning / failed) and in the Log, because discovery is where servers usually break.
 
 - **Client registration.** A client ID you enter is used first. Otherwise the tester uses a client ID metadata document, which it hosts at `/oauth/client-metadata.json`. That only works on the Worker, because an authorization server can't fetch a document from `localhost`. As a last resort it uses dynamic client registration, which the spec now deprecates.
-- **Pop-ups.** Sign-in normally happens in a pop-up. If pop-ups are blocked, the page redirects to the sign-in page and picks up where it left off when it comes back. Only the in-flight request is kept (in this tab's `sessionStorage`), and it is deleted as soon as the page returns.
+- **Pop-ups.** Sign-in normally happens in a pop-up. If pop-ups are blocked, the page redirects to the sign-in page and picks up where it left off when it comes back. Only the in-flight request is kept (in this tab's `sessionStorage`), and it is deleted as soon as the page returns. A client secret is never kept: if the sign-in needs one, you are asked to enter it again, or you can allow pop-ups.
 
 **Diagnostics.** The health monitor probes the server on an interval and records every call. The timeline uses three states (ok / slow / failed), with the failure kind in tooltips and the breakdown table; the latency chart breaks its line across failures so a lone success between failures still shows.
 

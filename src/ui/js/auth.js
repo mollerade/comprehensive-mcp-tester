@@ -460,10 +460,17 @@ function discoverOnly() {
 
 /* ── Redirect fallback ──
    Only the in-flight request is kept, in this tab's sessionStorage, and it is removed
-   the moment the page returns. Tokens never leave memory. */
+   the moment the page returns. Tokens never leave memory, and neither does a client
+   secret: it is left out, and a sign-in that needs one asks for it again on return. */
 function savePendingRedirect() {
   var p = auth.pending, pending = {};
   for (var k in p) { if (p.hasOwnProperty(k) && k !== 'popup') pending[k] = p[k]; }
+  if (p.client && p.client.client_secret) {
+    var client = {};
+    for (var c in p.client) { if (p.client.hasOwnProperty(c) && c !== 'client_secret') client[c] = p.client[c]; }
+    pending.client = client;
+    pending.secretRequired = true;
+  }
   try {
     sessionStorage.setItem('mcp_oauth_pending', JSON.stringify({
       pending: pending, clientId: auth.clientId, scope: auth.scope, preIssuer: auth.preIssuer, trace: auth.trace
@@ -496,7 +503,17 @@ function resumeRedirectSignIn() {
   if (p.client && p.client.how === 'dynamic registration') auth.registrations[p.issuer] = p.client;
   auth.pending = p; auth.busy = true;
   openAuthModal();
+  if (p.secretRequired) return askForSecretAgain();
   handleAuthResponse(parseQuery(search));
+}
+
+/* The secret was not kept across the redirect, so the code cannot be exchanged here */
+function askForSecretAgain() {
+  auth.pending = null; auth.busy = false; auth.clientSecret = '';
+  traceStep('Token request', 'fail', 'The client secret is not kept across the redirect, so the code was not exchanged. ' +
+    'Enter the client secret again and sign in, or allow pop-ups so sign-in stays in this page.');
+  renderAuthModal();
+  showToast('Enter the client secret again to finish signing in', 'err');
 }
 
 /* The OAuth redirect lands on this same page in the pop-up: hand the result back and close */

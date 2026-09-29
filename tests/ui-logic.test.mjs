@@ -360,3 +360,46 @@ describe('request log', () => {
     assert.deepEqual(c.state.log[cap - 1].body, { n: 250 }, 'the oldest entries are the ones dropped');
   });
 });
+
+describe('redirect fallback', () => {
+  function pendingWithSecret() {
+    c.auth.pending = {
+      state: 'st-1', verifier: 'v', issuer: 'https://as.example', issSupported: true,
+      tokenEndpoint: 'https://as.example/token', authMethods: ['client_secret_basic'],
+      client: { client_id: 'cc-client', client_secret: 's3cret-value', how: 'pre-registered' },
+      resource: 'https://mcp.example/mcp', scope: 'mcp:read', popup: null, boundTo: 'https://mcp.example/mcp',
+    };
+  }
+
+  test('AC-SEC-SESSION-01: no secret in sessionStorage', () => {
+    let stored = null;
+    c.sessionStorage.setItem = (k, v) => { stored = v; };
+    pendingWithSecret();
+    assert.equal(c.savePendingRedirect(), true);
+    assert.ok(stored, 'nothing was saved');
+    assert.doesNotMatch(stored, /s3cret-value/);
+    const hasSecretField = (v) => v && typeof v === 'object' && Object.entries(v).some(([k, x]) => k === 'client_secret' || hasSecretField(x));
+    assert.equal(hasSecretField(JSON.parse(stored)), false, 'a client_secret field was persisted');
+    assert.equal(JSON.parse(stored).pending.client.client_id, 'cc-client', 'the rest of the client is kept');
+    assert.equal(c.auth.pending.client.client_secret, 's3cret-value', 'the in-memory request keeps its secret');
+  });
+
+  test('resuming without the secret asks for it instead of sending a token request', () => {
+    let stored = null;
+    c.sessionStorage.setItem = (k, v) => { stored = v; };
+    c.sessionStorage.getItem = () => stored;
+    c.sessionStorage.removeItem = () => { stored = null; };
+    pendingWithSecret();
+    c.savePendingRedirect();
+    let fetched = 0;
+    c.fetch = () => { fetched++; return new Promise(() => {}); };
+    c.location.search = '?code=abc&state=st-1&iss=' + encodeURIComponent('https://as.example');
+    c.auth.pending = null;
+    c.resumeRedirectSignIn();
+    assert.equal(fetched, 0, 'a token request was sent without the client secret');
+    const last = c.auth.trace[c.auth.trace.length - 1];
+    assert.equal(last.outcome, 'fail');
+    assert.match(last.detail, /client secret/i);
+    assert.equal(c.auth.busy, false);
+  });
+});

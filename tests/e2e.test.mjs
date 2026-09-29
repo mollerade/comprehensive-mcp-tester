@@ -371,8 +371,11 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
-  await page.evaluate(() => { window.open = () => null; });
+  await page.evaluate(() => { window.auth.preIssuer = null; window.open = () => null; });
   await page.selectOption('#authMode', 'oauth');
+  // A public client: an earlier test typed client credentials into these fields, and a secret is not kept across a redirect
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
   await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
   await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
@@ -382,6 +385,33 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   assert.ok(trace.includes('Token request:ok'));
   assert.match((await waitForCall('tools/list', '/secure', { after: mark })).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
+});
+
+test('OAuth with pop-ups blocked and a client secret: the secret is not persisted, and is asked for again', { skip }, async () => {
+  const tokensBefore = mock.oauth.tokenRequests.length;
+  await page.evaluate(() => forgetCredentials());   // the previous test signed in to /secure
+  await page.fill('#urlInput', mock.base + '/secure');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.evaluate(() => { window.open = () => null; });
+  await page.selectOption('#authMode', 'oauth');
+  await page.fill('#authClientId', 'cc-client');
+  await page.fill('#authClientSecret', 'cc-secret');
+  // Record what the page writes to sessionStorage before it navigates away
+  await page.evaluate(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (String(v).includes('cc-secret')) localStorage.setItem('__secretPersisted', '1'); return set.call(this, k, v); };
+  });
+  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForFunction(() => window.auth.trace.some((s) => s.name === 'Token request' && s.outcome === 'fail'), null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('__secretPersisted')), null, 'the client secret was written to sessionStorage');
+  assert.equal(mock.oauth.tokenRequests.length, tokensBefore, 'a token request was sent without the secret');
+  assert.match(await page.evaluate(() => window.auth.trace.at(-1).detail), /client secret is not kept across the redirect/);
+  assert.equal(await page.evaluate(() => window.state.connected), false);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
+  await page.evaluate(() => { localStorage.removeItem('__secretPersisted'); window.auth.preIssuer = null; hideAuthModal(); });
 });
 
 test('credentials are not sent to a different server', { skip }, async () => {
