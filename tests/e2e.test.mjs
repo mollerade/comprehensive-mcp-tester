@@ -49,10 +49,26 @@ after(async () => {
 const lastCall = (method) => [...mock.calls].reverse().find((c) => c.body.method === method);
 const waitDraftRes = () => page.waitForFunction(() => { const d = window.state.drafts['tool-0']; return d && d.lastRes !== undefined; });
 
+// `state.connected` flips true before fetchAll()'s tools/list round-trips (transport.js),
+// so asserting on a recorded call right after waiting for `connected` races the network.
+// Poll the mock's own record for the exact (method, path) the assertion needs instead.
+// `after` skips calls recorded earlier, so a path reused across tests can't match a stale one.
+async function waitForCall(method, path, { after = 0, timeoutMs = 10000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    for (let i = mock.calls.length - 1; i >= after; i--) {
+      const c = mock.calls[i];
+      if (c.body.method === method && (path === undefined || c.path === path)) return c;
+    }
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${method}${path ? ' to ' + path : ''}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
 test('connects through the real proxy and shows server identity', { skip }, async () => {
   await page.fill('#urlInput', mock.url);
   await page.click('#connectBtn');
-  await page.waitForFunction(() => window.state.connected);
+  await page.waitForFunction(() => window.state.connected && window.state.tools.length === 3);
   assert.match(await page.textContent('#statusText'), /mock-mcp 1\.0\.0/);
   assert.equal(await page.evaluate(() => window.state.tools.length), 3);
 });
@@ -273,6 +289,7 @@ const statusIs = (text) => page.waitForFunction((t) => document.getElementById('
 const traceStep = (name) => page.evaluate((n) => window.auth.trace.find((s) => s.name === n), name);
 
 test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resource, then connects', { skip }, async () => {
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
@@ -295,7 +312,7 @@ test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resourc
   assert.equal(tr.resource, mock.base + '/secure');
   assert.ok(tr.code_verifier && tr.code_verifier.length >= 43);
 
-  const call = lastCall('tools/list');
+  const call = await waitForCall('tools/list', '/secure', { after: mark });
   assert.equal(call.path, '/secure');
   assert.match(call.headers.authorization, /^Bearer at-/);
   assert.equal((await traceStep('Issuer check (RFC 9207)')).outcome, 'ok');
@@ -341,11 +358,12 @@ test('client credentials, no resource_metadata hint: discovery probes the well-k
   assert.match(tr.authorization, /^Basic /, 'secret goes in Basic auth, as the metadata allows');
   assert.equal(tr.client_secret, undefined);
   assert.equal(tr.resource, mock.base + '/secure-nohint');
-  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  assert.match((await waitForCall('tools/list', '/secure-nohint')).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
 test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on return', { skip }, async () => {
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
@@ -358,15 +376,16 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   const trace = await page.evaluate(() => window.auth.trace.map((s) => s.name + ':' + s.outcome));
   assert.ok(trace.includes('Protected resource metadata:ok'), 'trace from before the redirect survives');
   assert.ok(trace.includes('Token request:ok'));
-  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  assert.match((await waitForCall('tools/list', '/secure', { after: mark })).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
 test('credentials are not sent to a different server', { skip }, async () => {
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.url);
   await page.click('#connectBtn');
   await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
-  assert.equal(lastCall('tools/list').headers.authorization, undefined);
+  assert.equal((await waitForCall('tools/list', '/mcp', { after: mark })).headers.authorization, undefined);
   await page.click('#connectBtn');
 });
 
