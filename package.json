@@ -16,6 +16,7 @@
     "dev": "node --watch src/hosts/node-server.js",
     "mock": "node tests/fixtures/mock-mcp-server.mjs",
     "test": "node --test",
+    "test:trace": "node scripts/check-traceability.mjs",
     "deploy": "npm run build && npx wrangler deploy"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@ A browser-based MCP (Model Context Protocol) client for testing and diagnosing M
 ```sh
 npm install
 npm test          # all suites, ~10s. Run before every commit.
+npm run test:trace # every AC in docs/acceptance/ has a test titled with its ID, and vice versa
 npm run build     # dist/index.html, dist/worker.js (paste into Cloudflare), dist/worker.mjs (wrangler)
 npm start         # local server on http://127.0.0.1:8787
 npm run dev       # same, restarts on core/host changes; UI edits show on reload
