@@ -233,7 +233,9 @@ Report vulnerabilities privately through GitHub, as [`SECURITY.md`](SECURITY.md)
 - **OAuth checks are enforced, not just reported:** issuer mismatch, the `iss` in the authorization response, `state`, and PKCE S256 support.
 **Resource limits.** Every proxied request has a timeout, clamped to 500 ms to 120 s (default 15 s), and at most 3 retries (default 0). The local server rejects a request body over 1 MB with 413. Diagnostics keep the latest 500 samples and the Log the latest 1000 entries, so a monitor left running for days stays bounded.
 
-**Testing and fuzzing.** The security invariants above are regression-tested: both hosts' origin checks and the local server's host and content-type checks in the hosts suite, the OAuth `iss` mix-up and PKCE end to end against the mock authorization server, and the https-only authorization endpoint in the UI-logic suite. There are no fuzz targets yet; the parsers most worth fuzzing are the SSE and JSON response handling. No OpenSSF Scorecard run yet ([#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56)).
+**Testing and fuzzing.** The security invariants above are regression-tested: both hosts' origin checks and the local server's host and content-type checks in the hosts suite, the OAuth `iss` mix-up and PKCE end to end against the mock authorization server, and the https-only authorization endpoint in the UI-logic suite. There are no fuzz targets yet; the parsers most worth fuzzing are the SSE and JSON response handling.
+
+**Analysis in CI.** CodeQL scans all JavaScript with its extended security queries on every change, dependency review blocks new vulnerable dependencies, `npm audit` and registry-signature checks run on every push, and OpenSSF Scorecard runs weekly on `main`.
 
 **Supported versions.** Only the latest code on the default branch; there are no maintained release branches.
 

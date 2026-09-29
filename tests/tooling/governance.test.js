@@ -24,3 +24,21 @@ test('AC-GOV-COMPLIANCE-01: governance files present', () => {
   assert.match(read('SECURITY.md'), /security\/advisories\/new/, 'SECURITY.md has no private reporting channel');
   assert.match(read('CONTRIBUTING.md'), /^## Acceptance criteria and regression tests$/m);
 });
+
+test('the community and agent files are present and filled in', () => {
+  for (const f of ['GOVERNANCE.md', 'SUPPORT.md', 'CITATION.cff', 'AGENTS.md', '.pre-commit-config.yaml', '.devcontainer/devcontainer.json']) {
+    assert.ok(existsSync(join(ROOT, f)), 'missing ' + f);
+    assert.ok(read(f).trim().length > 100, f + ' is a stub');
+  }
+  assert.match(read('CLAUDE.md'), /^@AGENTS\.md$/m, 'CLAUDE.md must import AGENTS.md, not keep a second copy');
+  assert.match(read('CITATION.cff'), /^cff-version: 1\.2\.0$/m);
+});
+
+test('every GitHub Action is pinned by commit', () => {
+  const dir = join(ROOT, '.github', 'workflows');
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.yml'))) {
+    for (const m of readFileSync(join(dir, f), 'utf8').matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)) {
+      assert.match(m[1], /@[0-9a-f]{40}$/, f + ': ' + m[1] + ' is not pinned by commit');
+    }
+  }
+});

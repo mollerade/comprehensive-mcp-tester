@@ -55,13 +55,19 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 | Test (Node 22, 24) | Every acceptance criterion has a test | `npm run test:trace` |
 | Test (Node 22, 24) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `make build` |
 | Test (Node 22, 24) | A staged install puts the `mcp-tester` command in place | `make DESTDIR=/tmp/stage install` |
+| Test (Node 22, 24) | No known vulnerability, and valid registry signatures | `npm audit && npm audit signatures` |
+| Test (Node 22, 24) | The build is reproducible: a rebuild from a fresh export is byte-identical | see the CI step |
+| Dependency review (pull requests) | No new dependency with a known vulnerability | not local |
+| CodeQL | Static analysis of every JavaScript file (security-extended queries) | not local |
+| Devcontainer (when it changes, and weekly) | The devcontainer builds and the full suite passes inside it | open the repository in a container |
+| Scorecard (`main`, weekly) | OpenSSF Scorecard, published to code scanning | not local |
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |
 | Docs lint | Every relative link and anchor in the Markdown resolves | `make links` |
 | Docs lint | The user manual builds in strict mode (a broken link or anchor fails it) | `make docs` |
 
-The docs-lint tools and MkDocs run in CI only; they are not project dependencies. MkDocs is pinned by hash in `docs/manual/requirements.txt` ([ADR 0006](docs/adr/0006-manual-with-mkdocs.md)).
+The docs-lint tools and MkDocs run in CI only; they are not project dependencies. `pre-commit install` runs markdownlint, codespell and the README and link checks before each commit (`.pre-commit-config.yaml`, hooks pinned by commit), and the devcontainer (`.devcontainer/`) boots to a working `npm test`, end-to-end tests included. MkDocs is pinned by hash in `docs/manual/requirements.txt` ([ADR 0006](docs/adr/0006-manual-with-mkdocs.md)).
 
 ## Releases
 

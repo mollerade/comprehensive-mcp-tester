@@ -1,0 +1,17 @@
+{
+  // Boots to a working `npm test`, end-to-end tests included. CI builds this
+  // container and runs the suite in it whenever this file changes.
+  "name": "MCP Tester",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24@sha256:7a81958053c4e3b5b20fa122f7a422d32dd0eebe87a6726f7b14483585ea60fd",
+  "postCreateCommand": "npm ci && npx playwright install --with-deps chromium",
+  "forwardPorts": [8787, 8788],
+  "portsAttributes": {
+    "8787": { "label": "MCP Tester" },
+    "8788": { "label": "Mock MCP server" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["EditorConfig.EditorConfig", "DavidAnson.vscode-markdownlint"]
+    }
+  }
+}

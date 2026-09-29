@@ -74,5 +74,7 @@ nav:
       - Policies: docs/POLICIES.md
       - Packaging: docs/packaging.md
       - Repository standard: docs/STANDARDS.md
+  - Getting help: SUPPORT.md
   - Security: SECURITY.md
+  - Governance: GOVERNANCE.md
   - Code of conduct: CODE_OF_CONDUCT.md

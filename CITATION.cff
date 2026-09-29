@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: If you use MCP Tester in your work, please cite it as below.
+title: MCP Tester
+abstract: >-
+  A browser-based client for testing and diagnosing Model Context Protocol
+  servers, hosted on Cloudflare or run locally.
+type: software
+authors:
+  - given-names: Christian
+    alias: mollerade
+repository-code: https://github.com/mollerade/comprehensive-mcp-tester
+url: https://sebastienrousseau.com/comprehensive-mcp-tester/
+keywords:
+  - Model Context Protocol
+  - MCP
+  - testing
+  - diagnostics

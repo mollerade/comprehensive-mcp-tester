@@ -19,9 +19,9 @@ The standard is applied in six phases, one per release. This page records where 
 | 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
 | 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
 | 5 | Packaging and distribution | 1 | 5 | Licence (#51) blocks redistribution; container image [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
-| 6 | CI quality gates | 5 | 5 | JavaScript lint and complexity gate [#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43); e2e reports [#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6) |
-| 7 | Supply chain and security | 1 | 4 | Pinned actions, Scorecard, audit in CI [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) |
-| 8 | Community and governance | 2 | 5 | Governance, support, citation, devcontainer [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) |
+| 6 | CI quality gates | 5 | 7 | JavaScript lint and complexity gate [#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43); e2e reports [#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6); coverage; fuzzing |
+| 7 | Supply chain and security | 1 | 6 | Scorecard below 9: branch protection, code review and a licence (#51) |
+| 8 | Community and governance | 2 | 9 | A CI-checked table across a repository family (not applicable to one repository) |
 
 ## Evidence by category
 
@@ -124,4 +124,4 @@ The standard is applied in six phases, one per release. This page records where 
 | 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Done |
 | 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Open |
 | 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Done |
-| 6 | Polish: Scorecard, pinned actions, devcontainer, governance files | [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) | Open |
+| 6 | Polish: Scorecard, pinned actions, devcontainer, governance files | [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) | Done |
