@@ -222,7 +222,11 @@ Report vulnerabilities privately through GitHub, as [`SECURITY.md`](SECURITY.md)
 - **Credentials stay in memory.** Auth keeps tokens and secrets in memory only and redacts them from the Log. The one exception is the pop-up fallback's in-flight request, kept in `sessionStorage` until the page returns.
 - **Saved headers are stored in the browser.** The Headers dialog saves its values in `localStorage`. Use Auth for tokens and keys.
 - **OAuth checks are enforced, not just reported:** issuer mismatch, the `iss` in the authorization response, `state`, and PKCE S256 support.
-- **No fuzzing yet**, and no OpenSSF Scorecard run ([#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56)).
+**Resource limits.** Every proxied request has a timeout, clamped to 500 ms to 120 s (default 15 s), and at most 3 retries (default 0). The local server rejects a request body over 1 MB with 413. Diagnostics keep the latest 500 samples. The Log is not capped yet, so a monitor left running for days grows it without bound ([#40](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/40)).
+
+**Testing and fuzzing.** The security invariants above are regression-tested: both hosts' origin checks and the local server's host and content-type checks in the hosts suite, the OAuth `iss` mix-up and PKCE end to end against the mock authorization server, and the https-only authorization endpoint in the UI-logic suite. There are no fuzz targets yet; the parsers most worth fuzzing are the SSE and JSON response handling. No OpenSSF Scorecard run yet ([#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56)).
+
+**Supported versions.** Only the latest code on the default branch; there are no maintained release branches.
 
 Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
@@ -242,12 +246,16 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
 ## Stability guarantees
 
-MCP Tester is pre-1.0 (currently 0.10.0) and makes no compatibility promise yet: any release may change the UI or behaviour. Two things are held stable on purpose:
+MCP Tester is pre-1.0 (currently 0.10.0). Before 1.0 each minor release has added one roadmap item, and any release may change the UI.
 
-- **The `/proxy` envelope** between the UI and the hosts is treated as a contract. A change to it updates both hosts and their tests together.
+**What counts as breaking.** A change is breaking when it changes what someone outside the UI relies on, even if no code signature moves:
+
+- **The `/proxy` envelope** (fields and meanings in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#the-proxy-contract)). The UI and both hosts depend on it, so a change updates all three and their tests together.
 - **`dist/worker.js` stays paste-able** into the Cloudflare dashboard (Service Worker format, no module syntax); the build fails if it isn't.
+- **The configuration variables** in [Configuration](#configuration): a rename or a changed default is breaking for existing deployments.
+- **The mock server's scenario names and paths**, which other projects can use to test their servers.
 
-The Node.js floor and how it may change are in [`docs/POLICIES.md`](docs/POLICIES.md). No deprecation window is defined yet.
+A breaking change is listed under **Changed** or **Removed** in [`CHANGELOG.md`](CHANGELOG.md). No deprecation window is defined yet; that belongs to the versioning policy in [#7](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/7). The Node.js floor is in [`docs/POLICIES.md`](docs/POLICIES.md).
 
 ---
 

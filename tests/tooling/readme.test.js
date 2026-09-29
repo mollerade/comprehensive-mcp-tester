@@ -13,10 +13,15 @@ import { checkReadme } from '../../scripts/check-readme.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
+const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
 const TOKEN = '{{' + 'PROJECT_NAME' + '}}';
 
 test('the README follows the template layout', () => {
-  assert.deepEqual(checkReadme(README), []);
+  assert.deepEqual(checkReadme(README, { version: VERSION }), []);
+});
+
+test('a stated current version must match package.json', () => {
+  assert.match(checkReadme(README, { version: '9.9.9' }).join('\n'), /says "currently \d+\.\d+\.\d+" but package.json is 9\.9\.9/);
 });
 
 test('a missing SPDX comment on line 1 is caught', () => {
@@ -48,6 +53,7 @@ test('the CLI exits 1 and names the file on a bad README', () => {
   try {
     const file = join(dir, 'README.md');
     writeFileSync(file, '# Nothing like the template\n');
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: '0.0.1' }));
     const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'check-readme.mjs'), '--file=' + file], { encoding: 'utf8' });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /README\.md: line 1: expected an SPDX-License-Identifier comment/);
