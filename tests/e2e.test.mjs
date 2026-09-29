@@ -389,6 +389,40 @@ test('credentials are not sent to a different server', { skip }, async () => {
   await page.click('#connectBtn');
 });
 
+// Connecting flips `state.connected` before fetchAll() returns, so the user can switch
+// servers while the old server's tools/list is still in flight (/slow-list holds it 800ms).
+async function connectSlowList() {
+  if (await page.evaluate(() => window.state.connected)) await page.click('#connectBtn');
+  const mark = mock.calls.length;
+  await page.fill('#urlInput', mock.base + '/slow-list');
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  await waitForCall('tools/list', '/slow-list', { after: mark });
+}
+const waitPastSlowList = () => new Promise((r) => setTimeout(r, 1200));
+
+test('AC-BUG-CONNGEN-01: a stale response is ignored', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect from A
+  await page.fill('#urlInput', mock.url);
+  await page.click('#connectBtn');                                  // connect to B
+  await page.waitForFunction(() => window.state.connected && window.state.tools.length === 3, null, { timeout: 5000 });
+  await waitPastSlowList();
+  const names = await page.evaluate(() => window.state.tools.map((t) => t.name));
+  assert.equal(names.includes('slow_list_tool'), false, 'A\'s late tools/list wrote into B: ' + names.join(', '));
+  assert.equal(names.length, 3);
+  await page.click('#connectBtn');
+});
+
+test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect while tools/list is in flight
+  await waitPastSlowList();
+  assert.deepEqual(await page.evaluate(() => window.state.tools), []);
+  assert.equal(await page.textContent('#toolsBadge'), '0');
+  assert.equal(await page.evaluate(() => document.body.textContent.includes('slow_list_tool')), false);
+});
+
 test('no horizontal overflow at phone width', { skip }, async () => {
   await page.setViewportSize({ width: 400, height: 800 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);

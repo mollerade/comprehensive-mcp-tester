@@ -356,6 +356,7 @@ function runAndShow(key, body, btnId, btnLabel) {
   if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
   return sendBody(body, 'call').then(function(r) {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+    if (r.stale) return r;                       // answered after a reconnect: not this server's draft
     d.lastRes = r.data;
     d.lastMeta = { status: r.status, ms: r.diag ? r.diag.totalMs : null, clientMs: r.clientMs, at: Date.now() };
     renderReqRes(key);

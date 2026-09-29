@@ -15,6 +15,8 @@
  *   /hang        never responds (timeouts)
  *   /fail        HTTP 503 on everything
  *   /stream      tools/call answers as text/event-stream instead of JSON
+ *   /slow-list   normal, but tools/list answers after 800ms with its own tool list,
+ *                so a late answer from a previous connection is recognisable
  *
  * Those are all legacy-era (initialize handshake, sessions), like most servers today.
  * Two more speak the 2026-07-28 stateless protocol:
@@ -91,6 +93,8 @@ const rpcErr = (id, code, message, data) => ({ jsonrpc: '2.0', error: data ? { c
 const rpcOk = (id, result) => ({ jsonrpc: '2.0', id, result });
 
 export const MODERN_VERSION = '2026-07-28';
+const SLOW_LIST_TOOLS = [{ name: 'slow_list_tool', description: 'Only served by /slow-list', inputSchema: { type: 'object', properties: {} } }];
+const SLOW_LIST_MS = 800;
 const SECURE_PATHS = ['/secure', '/secure-nohint', '/secure-mixup'];
 const PRM_PREFIX = '/.well-known/oauth-protected-resource';
 const META = 'io.modelcontextprotocol/';
@@ -294,7 +298,10 @@ export function startMockServer(port = 0, host = '127.0.0.1') {
       if (body.id === undefined) return reply(res, 202, undefined);   // notification
 
       switch (body.method) {
-        case 'tools/list': return reply(res, 200, rpcOk(body.id, { tools: TOOLS }));
+        case 'tools/list':
+          if (path !== '/slow-list') return reply(res, 200, rpcOk(body.id, { tools: TOOLS }));
+          await new Promise((r) => setTimeout(r, SLOW_LIST_MS));
+          return reply(res, 200, rpcOk(body.id, { tools: SLOW_LIST_TOOLS }));
         case 'resources/list': return reply(res, 200, rpcOk(body.id, { resources: RESOURCES }));
         case 'prompts/list': return reply(res, 200, rpcOk(body.id, { prompts: PROMPTS }));
         case 'resources/read': case 'prompts/get': case 'tools/call': {
