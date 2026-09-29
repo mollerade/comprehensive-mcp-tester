@@ -15,7 +15,7 @@ npm run test:trace # every AC in docs/acceptance/ has a test titled with its ID,
 npm run build     # dist/index.html, dist/worker.js (paste into Cloudflare), dist/worker.mjs (wrangler)
 npm start         # local server on http://127.0.0.1:8787
 npm run dev       # same, restarts on core/host changes; UI edits show on reload
-npm run mock      # mock MCP server on http://127.0.0.1:8788/mcp (+ /slow /hang /fail /stream)
+npm run mock      # mock MCP server on http://127.0.0.1:8788/mcp (+ /slow /hang /fail /stream; /scenario/<name>/mcp, GET /__scenarios)
 ```
 
 E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`. Without it they skip; they don't fail.
@@ -67,6 +67,6 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 ## Working agreements
 
 - Run `npm test` before committing. Add or adjust tests with every behaviour change; the e2e suite drives the real UI through the real proxy to the mock server.
-- Keep `tests/fixtures/mock-mcp-server.mjs` realistic: it should fail the same ways real servers do.
+- Keep `tests/fixtures/mock-mcp-server.mjs` realistic: it should fail the same ways real servers do. New misbehaviour is a new scenario in `tests/fixtures/mock/scenarios/` (served on `/scenario/<name>/mcp`), not a new top-level path; `startMock({ port: 0 })` gives each test its own instance.
 - After UI changes, check light and dark and ~400px width (the e2e suite asserts no horizontal overflow).
 - Deploying to Cloudflare today is manual: paste `dist/worker.js` into the dashboard, selecting and deleting ALL existing code first. A leftover-code paste once caused a confusing `Unexpected identifier` error.
