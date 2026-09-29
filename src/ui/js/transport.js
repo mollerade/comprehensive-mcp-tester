@@ -104,78 +104,117 @@ function isModernError(data) {
   return !!(data && data.error && MODERN_ERROR_CODES.indexOf(data.error.code) !== -1);
 }
 
+/* A connection generation: bumped by every connect and disconnect. A response is
+   stale when the generation moved on while it was in flight; it is logged (it did
+   happen on the wire) but never touches session, auth, diagnostics or view state. */
+function isStale(gen) {
+  return gen !== state.generation;
+}
+
+function staleResult() {
+  return { data: { error: { message: 'stale response from a previous connection' } }, status: null,
+           diag: null, clientMs: null, isErr: true, transportOk: false, stale: true };
+}
+
+function copyHeaders(into, from) {
+  for (var k in from) { if (from.hasOwnProperty(k)) into[k] = from[k]; }
+  return into;
+}
+
+function legacyHeaders() {
+  var h = {};
+  if (state.sessionId) h['mcp-session-id'] = state.sessionId;
+  // Required from 2025-06-18 on; ISO dates compare as strings
+  if (state.connected && state.protocolVersion && state.protocolVersion >= '2025-06-18') h['MCP-Protocol-Version'] = state.protocolVersion;
+  return h;
+}
+
+function requestHeaders(body) {
+  var hdrs = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
+  copyHeaders(hdrs, state.headers);
+  copyHeaders(hdrs, authHeaders());
+  return copyHeaders(hdrs, body.method && speaksModern(body) ? modernHeaders(body) : legacyHeaders());
+}
+
+function parseResponseBody(res) {
+  var ct = (res.get('content-type') || '');
+  if (ct.indexOf('text/event-stream') !== -1) {
+    var messages = parseSSE(res.bodyText);
+    return { data: messages.length ? messages[messages.length - 1] : {}, sseCount: messages.length };
+  }
+  try { return { data: JSON.parse(res.bodyText), sseCount: null }; }
+  catch(e) { return { data: { raw: res.bodyText }, sseCount: null }; }
+}
+
+function responseIsError(transportOk, data, status) {
+  return !transportOk || !!(data && data.error) || status >= 400;
+}
+
+/* An HTTP error to the era-detection request is the expected legacy signal, not an outage */
+function isExpectedLegacySignal(source, isErr, transportOk, data) {
+  return source === 'detect' && isErr && transportOk && !isModernError(data);
+}
+
+function handleResponse(res, method, source, gen) {
+  var parsed = parseResponseBody(res), data = parsed.data, status = res.status;
+  var d = res.diag || {};
+  var transportOk = d.ok !== false;
+  var isErr = responseIsError(transportOk, data, status);
+
+  addLog(isErr ? 'err' : (parsed.sseCount != null ? 'sse' : 'res'), method,
+         { body: data, sseEvents: parsed.sseCount }, status, res.headers, res);
+  if (isStale(gen)) return staleResult();
+
+  noteSessionAndAuth(res);
+  if (!isExpectedLegacySignal(source, isErr, transportOk, data)) recordProbe(probeOf(res, data, isErr, method, source));
+  return { data: data, status: status, diag: d, clientMs: res.clientMs, isErr: isErr, transportOk: transportOk };
+}
+
+function noteSessionAndAuth(res) {
+  var sid = res.get('mcp-session-id');
+  if (sid) state.sessionId = sid;
+  if (res.status === 401 || res.status === 403) noteAuthChallenge(res.status, res.get('www-authenticate'));
+}
+
+function probeOf(res, data, isErr, method, source) {
+  var d = res.diag || {}, status = res.status;
+  return {
+    t: Date.now(), ok: !isErr, status: status,
+    ms: d.totalMs != null ? d.totalMs : res.clientMs,
+    ttfb: d.ttfbMs != null ? d.ttfbMs : null,
+    clientMs: res.clientMs, overhead: res.overheadMs,
+    errorType: isErr ? classifyError(d, status, data) : null,
+    errorDetail: errorDetailOf(d, status, data),
+    attempts: d.attempts || 1, colo: d.colo || null,
+    method: method, source: source || 'call'
+  };
+}
+
+function handleSendFailure(e, method, source, gen) {
+  addLog('err', method, { body: { error: e.message } }, null, null, null);
+  if (isStale(gen)) return staleResult();
+  recordProbe({
+    t: Date.now(), ok: false, status: null, ms: null, ttfb: null,
+    clientMs: null, overhead: null,
+    errorType: 'client', errorDetail: e.message, attempts: 1,
+    colo: null, method: method, source: source || 'call'
+  });
+  return { data: { error: { message: e.message } }, status: null, diag: null, clientMs: null, isErr: true, transportOk: false };
+}
+
 function sendBody(body, source) {
   var method = body.method || 'raw';
+  var gen = state.generation;
   applyModernMeta(body);
   addLog('req', method, { body: body }, null, null, null);
-
-  var hdrs = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
-  for (var k in state.headers) { if (state.headers.hasOwnProperty(k)) hdrs[k] = state.headers[k]; }
-  var ah = authHeaders();
-  for (var a in ah) { if (ah.hasOwnProperty(a)) hdrs[a] = ah[a]; }
-  if (body.method && speaksModern(body)) {
-    var mh = modernHeaders(body);
-    for (var m in mh) { if (mh.hasOwnProperty(m)) hdrs[m] = mh[m]; }
-  } else {
-    if (state.sessionId) hdrs['mcp-session-id'] = state.sessionId;
-    // Required from 2025-06-18 on; ISO dates compare as strings
-    if (state.connected && state.protocolVersion && state.protocolVersion >= '2025-06-18') hdrs['MCP-Protocol-Version'] = state.protocolVersion;
-  }
-
-  return proxyFetch(state.serverUrl, { method: 'POST', headers: hdrs, body: JSON.stringify(body) })
-    .then(function(res) {
-      var sid = res.get('mcp-session-id');
-      if (sid) state.sessionId = sid;
-      if (res.status === 401 || res.status === 403) noteAuthChallenge(res.status, res.get('www-authenticate'));
-
-      var status = res.status;
-      var text = res.bodyText;
-      var ct = (res.get('content-type') || '');
-      var data, sseCount = null;
-
-      if (ct.indexOf('text/event-stream') !== -1) {
-        var messages = parseSSE(text);
-        sseCount = messages.length;
-        data = messages.length ? messages[messages.length - 1] : {};
-      } else {
-        try { data = JSON.parse(text); } catch(e) { data = { raw: text }; }
-      }
-
-      var d = res.diag || {};
-      var transportOk = d.ok !== false;
-      var isErr = !transportOk || !!(data && data.error) || status >= 400;
-
-      // An HTTP error to the era-detection request is the expected legacy signal, not an outage
-      if (!(source === 'detect' && isErr && transportOk && !isModernError(data))) recordProbe({
-        t: Date.now(), ok: !isErr, status: status,
-        ms: d.totalMs != null ? d.totalMs : res.clientMs,
-        ttfb: d.ttfbMs != null ? d.ttfbMs : null,
-        clientMs: res.clientMs, overhead: res.overheadMs,
-        errorType: isErr ? classifyError(d, status, data) : null,
-        errorDetail: errorDetailOf(d, status, data),
-        attempts: d.attempts || 1, colo: d.colo || null,
-        method: method, source: source || 'call'
-      });
-
-      addLog(isErr ? 'err' : (sseCount != null ? 'sse' : 'res'), method,
-             { body: data, sseEvents: sseCount }, status, res.headers, res);
-
-      return { data: data, status: status, diag: d, clientMs: res.clientMs, isErr: isErr, transportOk: transportOk };
-    })
-    .catch(function(e) {
-      recordProbe({
-        t: Date.now(), ok: false, status: null, ms: null, ttfb: null,
-        clientMs: null, overhead: null,
-        errorType: 'client', errorDetail: e.message, attempts: 1,
-        colo: null, method: method, source: source || 'call'
-      });
-      addLog('err', method, { body: { error: e.message } }, null, null, null);
-      return { data: { error: { message: e.message } }, status: null, diag: null, clientMs: null, isErr: true, transportOk: false };
-    });
+  return proxyFetch(state.serverUrl, { method: 'POST', headers: requestHeaders(body), body: JSON.stringify(body) })
+    .then(function(res) { return handleResponse(res, method, source, gen); })
+    .catch(function(e) { return handleSendFailure(e, method, source, gen); });
 }
 
 function rpc(method, params, source) {
   return sendBody(buildBody(method, params), source).then(function(r) {
+    if (r.stale) return { error: r.data.error, stale: true };
     if (r.data && r.data.error) return { error: r.data.error };
     if (!r.transportOk) return { error: { message: (r.diag && r.diag.errorDetail) || 'transport failure' } };
     return r.data;
@@ -228,6 +267,7 @@ function handleConnect() {
   state.transport = 'streamable';
   state.connecting = true;
   state.era = null; state.protocolVersion = null; state.sessionId = null;
+  var gen = ++state.generation;
   var startedAt = Date.now();
   persistCurrent();
   setStatus('connecting', 'Connecting...');
@@ -235,53 +275,61 @@ function handleConnect() {
   document.getElementById('connectBtn').className = 'btn btn-primary';
 
   negotiate().then(function(res) {
-    if (res.error) {
-      state.connecting = false;
-      state.era = null; state.protocolVersion = null;
-      document.getElementById('connectBtn').textContent = 'Connect';
-      document.getElementById('connectBtn').className = 'btn btn-primary';
-      if (auth.challenge && auth.challenge.at >= startedAt) {
-        setStatus('error', auth.challenge.status === 403 ? 'Access denied' : 'Sign-in required');
-        showToast('The server wants credentials (HTTP ' + auth.challenge.status + ')', 'err');
-        openAuthModal(true);
-        return;
-      }
-      setStatus('error', 'Failed');
-      showToast('Connection failed: ' + (res.error.message || 'see Log tab'), 'err');
-      return;
-    }
-    state.serverInfo = res.info;
-    state.connected = true;
-    state.connecting = false;
-    var si = (state.serverInfo.serverInfo || {});
-    var label = 'Connected';
-    if (si.name) label += ' \u00b7 ' + si.name + (si.version ? ' ' + si.version : '');
-    setStatus('connected', label);
-    document.getElementById('statusPill').title = 'Streamable HTTP' +
-      (state.protocolVersion ? ' \u00b7 protocol ' + state.protocolVersion : '') +
-      (state.era === 'modern' ? ' \u00b7 stateless' : ' \u00b7 legacy (initialize handshake)');
-    document.getElementById('connectBtn').textContent = 'Disconnect';
-    document.getElementById('connectBtn').className = 'btn btn-disconnect';
-    if (state.era === 'legacy') return rpc('notifications/initialized', {}).then(function() { return fetchAll(); });
-    return fetchAll();
+    if (isStale(gen)) return;
+    if (res.error) return connectFailed(res.error, startedAt);
+    showConnected(res.info);
+    if (state.era === 'legacy') return rpc('notifications/initialized', {}).then(function() { return fetchAll(gen); });
+    return fetchAll(gen);
   });
+}
+
+function connectFailed(error, startedAt) {
+  state.connecting = false;
+  state.era = null; state.protocolVersion = null;
+  document.getElementById('connectBtn').textContent = 'Connect';
+  document.getElementById('connectBtn').className = 'btn btn-primary';
+  if (auth.challenge && auth.challenge.at >= startedAt) {
+    setStatus('error', auth.challenge.status === 403 ? 'Access denied' : 'Sign-in required');
+    showToast('The server wants credentials (HTTP ' + auth.challenge.status + ')', 'err');
+    openAuthModal(true);
+    return;
+  }
+  setStatus('error', 'Failed');
+  showToast('Connection failed: ' + (error.message || 'see Log tab'), 'err');
+}
+
+function showConnected(info) {
+  state.serverInfo = info;
+  state.connected = true;
+  state.connecting = false;
+  var si = (state.serverInfo.serverInfo || {});
+  var label = 'Connected';
+  if (si.name) label += ' \u00b7 ' + si.name + (si.version ? ' ' + si.version : '');
+  setStatus('connected', label);
+  document.getElementById('statusPill').title = 'Streamable HTTP' +
+    (state.protocolVersion ? ' \u00b7 protocol ' + state.protocolVersion : '') +
+    (state.era === 'modern' ? ' \u00b7 stateless' : ' \u00b7 legacy (initialize handshake)');
+  document.getElementById('connectBtn').textContent = 'Disconnect';
+  document.getElementById('connectBtn').className = 'btn btn-disconnect';
 }
 
 function negotiate() {
   return discoverAs(MODERN_VERSIONS[0]).then(function(r) {
-    if (r.info) return r;
+    if (r.info || r.stale) return r;
     if (!r.transportOk || r.status === 401 || r.status === 403) return { error: r.error };
-    var err = r.data.error;
-    if (isModernError(r.data)) {
-      var supported = (err.code === -32022 && err.data && err.data.supported) || [];
-      var modern = pickVersion(supported, MODERN_VERSIONS);
-      if (modern) return discoverAs(modern).then(function(r2) { return r2.info ? r2 : { error: r2.error }; });
-      var legacy = pickVersion(supported, null);
-      if (legacy) return legacyConnect(legacy);
-      return { error: err };
-    }
+    if (isModernError(r.data)) return retryModernError(r.data.error);
     return legacyConnect(LEGACY_VERSION);
   });
+}
+
+/* A modern server refused our version: retry with one it lists, modern first */
+function retryModernError(err) {
+  var supported = (err.code === -32022 && err.data && err.data.supported) || [];
+  var modern = pickVersion(supported, MODERN_VERSIONS);
+  if (modern) return discoverAs(modern).then(function(r2) { return r2.info ? r2 : { error: r2.error }; });
+  var legacy = pickVersion(supported, null);
+  if (legacy) return legacyConnect(legacy);
+  return { error: err };
 }
 
 /* First entry of `supported` that we speak: one of `ours`, or (ours = null) any legacy date */
@@ -296,21 +344,24 @@ function pickVersion(supported, ours) {
 function discoverAs(version) {
   state.era = 'modern'; state.protocolVersion = version;
   return sendBody(buildBody('server/discover', {}), 'detect').then(function(r) {
+    if (r.stale) return { error: r.data.error, stale: true };
     var result = r.data && r.data.result;
-    if (!r.isErr && result) {
-      var meta = result._meta || {};
-      return { info: {
-        serverInfo: meta[MCP_META + 'serverInfo'] || {},
-        protocolVersion: version,
-        supportedVersions: result.supportedVersions || [],
-        capabilities: result.capabilities || {},
-        instructions: result.instructions || null
-      } };
-    }
+    if (!r.isErr && result) return { info: discoverInfo(result, version) };
     state.era = null; state.protocolVersion = null;
     return { transportOk: r.transportOk, status: r.status, data: r.data || {},
              error: (r.data && r.data.error) || { message: (r.diag && r.diag.errorDetail) || ('HTTP ' + r.status) } };
   });
+}
+
+function discoverInfo(result, version) {
+  var meta = result._meta || {};
+  return {
+    serverInfo: meta[MCP_META + 'serverInfo'] || {},
+    protocolVersion: version,
+    supportedVersions: result.supportedVersions || [],
+    capabilities: result.capabilities || {},
+    instructions: result.instructions || null
+  };
 }
 
 function legacyConnect(version) {
@@ -318,7 +369,7 @@ function legacyConnect(version) {
   return rpc('initialize', {
     protocolVersion: version, capabilities: {}, clientInfo: CLIENT_INFO
   }).then(function(res) {
-    if (res.error) return { error: res.error };
+    if (res.error) return res;
     var info = res.result || {};
     state.protocolVersion = info.protocolVersion || version;
     return { info: info };
@@ -326,6 +377,7 @@ function legacyConnect(version) {
 }
 
 function disconnect() {
+  state.generation++;
   state.connected = false; state.sessionId = null;
   state.era = null; state.protocolVersion = null;
   state.tools = []; state.resources = []; state.prompts = [];
@@ -337,11 +389,15 @@ function disconnect() {
   renderTab(); updateBadges();
 }
 
-function fetchAll() {
-  var p = [];
-  p.push(rpc('tools/list').then(function(r) { if (r.result) state.tools = r.result.tools || []; }));
-  p.push(rpc('resources/list').then(function(r) { if (r.result) state.resources = r.result.resources || []; }));
-  p.push(rpc('prompts/list').then(function(r) { if (r.result) state.prompts = r.result.prompts || []; }));
-  return Promise.all(p.map(function(x) { return x.catch(function(){}); })).then(function() { updateBadges(); renderTab(); });
+function fetchAll(gen) {
+  function list(method, key) {
+    return rpc(method).then(function(r) {
+      if (!isStale(gen) && r.result) state[key] = r.result[key] || [];
+    });
+  }
+  var p = [list('tools/list', 'tools'), list('resources/list', 'resources'), list('prompts/list', 'prompts')];
+  return Promise.all(p.map(function(x) { return x.catch(function(){}); })).then(function() {
+    if (isStale(gen)) return;
+    updateBadges(); renderTab();
+  });
 }
-

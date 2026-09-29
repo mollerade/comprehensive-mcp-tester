@@ -2,6 +2,7 @@ var state = {
   sessionId: null, serverUrl: '', headers: {}, transport: 'streamable',
   era: null, protocolVersion: null,
   connected: false, connecting: false, rpcId: 0,
+  generation: 0,        // bumped on every connect/disconnect; stale responses are dropped
   tools: [], resources: [], prompts: [], log: [],
   activeTab: 'tools', expandedItem: null,
   servers: [], activeServerId: null, serverInfo: null,
