@@ -75,7 +75,32 @@ The docs-lint tools and MkDocs run in CI only; they are not project dependencies
 
 ## Releases
 
-The user manual is published to GitHub Pages by `.github/workflows/docs.yml` for each `v*` tag, or by hand from the Actions tab. There is no release pipeline yet: versions 0.8.0 to 0.10.0 were not tagged, and CI uploads `dist/` as the `mcp-tester-dist` artifact on every run. Automated, signed releases are tracked in [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54). Record user-visible changes in [`CHANGELOG.md`](CHANGELOG.md) under `Unreleased` as you make them.
+Every release increments the version by exactly 0.0.1 and is built from `feat/v<next-version>` (see [`docs/POLICIES.md`](docs/POLICIES.md#versioning)). `.github/workflows/release.yml` does the rest when a signed tag is pushed.
+
+**Before tagging**, on the release branch:
+
+1. Bump the version everywhere it appears: `package.json`, `package-lock.json` (`npm install --package-lock-only`), `CLIENT_INFO` in `src/ui/js/state.js`, and "currently X.Y.Z" in the README. `make versions` and `make readme` fail until they all agree.
+2. Move the `Unreleased` entries in `CHANGELOG.md` under a `## [X.Y.Z] - <date>` heading.
+3. Write `docs/releases/vX.Y.Z.md`: the release's two to four highlights ([format](docs/releases/README.md)).
+4. Merge the release pull request into `main`.
+
+**Tagging** is done by a maintainer, on `main`, with a signed annotated tag whose message is exactly `MCP Tester vX.Y.Z`:
+
+```sh
+git tag -s vX.Y.Z -m "MCP Tester vX.Y.Z" && git push origin vX.Y.Z
+```
+
+**The workflow then**, in order, and stops at the first failure:
+
+1. Checks the tag: annotated, signed and verified by GitHub, message `MCP Tester vX.Y.Z`, pointing at a commit on `main`, and every version reference and the changelog heading match it.
+2. Builds `dist/`, a CycloneDX SBOM (`npm sbom`) and `SHA256SUMS` over every file.
+3. Attests build provenance for every file and binds the SBOM to them, both signed with Sigstore.
+4. Composes the notes (the highlights, GitHub's list of merged pull requests, the checksums, the full changelog link) and publishes the release.
+5. Reads the release back: downloads every file, checks it against `SHA256SUMS` and its provenance, and checks the notes and the tag signature.
+
+**A dry run** does everything except publish: it runs on pull requests that change the release machinery, and by hand from the Actions tab. Its files and notes are kept as a workflow artifact, and the notes appear in the run summary.
+
+The user manual is published to GitHub Pages by `.github/workflows/docs.yml` for the same tag.
 
 ## Deploying to Cloudflare by hand
 

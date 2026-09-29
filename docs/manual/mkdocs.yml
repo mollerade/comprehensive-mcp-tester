@@ -53,6 +53,7 @@ validation:
 
 not_in_nav: |
   docs/assets/LOGO.md
+  docs/releases/v*.md
 
 nav:
   - Overview: README.md
@@ -74,6 +75,7 @@ nav:
       - Acceptance criteria: docs/acceptance/README.md
       - Policies: docs/POLICIES.md
       - Packaging: docs/packaging.md
+      - Release highlights: docs/releases/README.md
       - Repository standard: docs/STANDARDS.md
   - Getting help: SUPPORT.md
   - Security: SECURITY.md
