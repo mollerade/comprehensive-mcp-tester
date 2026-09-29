@@ -54,7 +54,7 @@ export function platformViolations(dir) {
 
 /** Core sources concatenated into the Worker, dependencies first */
 const CORE_FILES = [
-  'src/core/proxy.js', 'src/core/oauth-client.js',
+  'src/core/proxy.js', 'src/core/oauth-client.js', 'src/core/security-headers.js',
   'src/core/compliance/rules/version.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
 ];
 

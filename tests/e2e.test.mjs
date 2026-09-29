@@ -27,7 +27,8 @@ async function launch() {
 const browser = await launch();
 const skip = browser ? false : 'Playwright/Chromium not available — run `npx playwright install chromium`';
 
-let mock, server, base, page;
+let mock, server, base, page, firstResponse;
+const cspViolations = [];   // every Content-Security-Policy report, from the page and its OAuth pop-ups
 
 before(async () => {
   if (skip) return;
@@ -36,7 +37,10 @@ before(async () => {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
-  await page.goto(base + '/');
+  const watch = (p) => p.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) cspViolations.push(m.text()); });
+  watch(page);
+  page.context().on('page', watch);
+  firstResponse = await page.goto(base + '/');
 });
 
 after(async () => {
@@ -426,4 +430,12 @@ test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async
 test('no horizontal overflow at phone width', { skip }, async () => {
   await page.setViewportSize({ width: 400, height: 800 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+});
+
+test('AC-SEC-CSP-02: the app still functions under the policy', { skip }, async () => {
+  const csp = firstResponse.headers()['content-security-policy'];
+  assert.ok(csp && csp.includes("connect-src 'self'"), 'the page was not served with the policy');
+  // Runs last: every flow above (connect, both eras, sign-in with pop-up and redirect, execute,
+  // diagnostics, theme) has run under the policy by now, and none may have been blocked.
+  assert.deepEqual(cspViolations, []);
 });

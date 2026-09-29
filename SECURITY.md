@@ -20,6 +20,7 @@ The threat model, in short (the full list is in the [README's Security section](
 
 - **The local server is not an open proxy.** It binds to loopback, rejects unknown `Host` headers (DNS rebinding), rejects `/proxy` calls from other origins, and requires `Content-Type: application/json`, so no web page you visit can use it to reach internal systems.
 - **The Cloudflare Worker is public** but cannot be driven by other web pages: `/proxy` rejects foreign origins and sends no CORS grants. It should sit behind Cloudflare Access before it is used with credentials.
+- **A Content-Security-Policy** limits the page to its own origin for requests and forbids framing it.
 - **Credentials stay in memory**, are bound to the server they were set up for, and are redacted from the Log.
 - **OAuth checks are enforced:** issuer match, the `iss` in the authorization response, `state`, PKCE S256, and an https authorization endpoint.
 

@@ -244,3 +244,33 @@ test('the local server starts when run through a symlinked path, and announces i
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('AC-SEC-CSP-01: both hosts send the policy', async () => {
+  const required = ["connect-src 'self'", "frame-ancestors 'none'", "default-src 'none'", "base-uri 'none'", "form-action 'self'"];
+  const check = (where, headers) => {
+    const csp = headers.get('content-security-policy');
+    assert.ok(csp, where + ' sends no Content-Security-Policy');
+    for (const d of required) assert.ok(csp.split(/;\s*/).includes(d), where + ' policy lacks ' + d + ': ' + csp);
+  };
+
+  // Cloudflare bundle, executed as built
+  let handler;
+  const ctx = vm.createContext({ addEventListener: (t, fn) => { if (t === 'fetch') handler = fn; }, Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console });
+  vm.runInContext(build({ write: false }).sw, ctx, { filename: 'worker.js' });
+  for (const path of ['/', '/oauth/callback']) {
+    const res = await new Promise((resolve) => handler({ request: new Request('https://tester.example' + path), respondWith: resolve }));
+    check('worker ' + path, res.headers);
+  }
+
+  // Local Node server
+  const server = createServer({ allowedOrigins: '', allowedHosts: '' });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    for (const path of ['/', '/oauth/callback']) {
+      const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`);
+      check('node ' + path, res.headers);
+    }
+  } finally {
+    await new Promise((r) => { server.closeAllConnections?.(); server.close(r); });
+  }
+});
