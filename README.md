@@ -15,7 +15,7 @@
   <a href="#install"><img src="https://img.shields.io/badge/registry-not%20published-lightgrey?style=for-the-badge&color=fc8d62&logo=nodedotjs" alt="Registry" /></a>
   <a href="#documentation"><img src="https://img.shields.io/badge/docs-in%20repo-blue?style=for-the-badge&labelColor=555555&logo=markdown" alt="Docs" /></a>
   <a href="https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51"><img src="https://img.shields.io/badge/license-not%20yet%20chosen-blue.svg?style=for-the-badge" alt="License: not yet chosen" /></a>
-  <a href="https://github.com/mollerade/comprehensive-mcp-tester/blob/main/docs/POLICIES.md"><img src="https://img.shields.io/badge/node-20%2B-93450a.svg?style=for-the-badge&logo=nodedotjs" alt="Node.js 20 or later" /></a>
+  <a href="https://github.com/mollerade/comprehensive-mcp-tester/blob/main/docs/POLICIES.md"><img src="https://img.shields.io/badge/node-22%2B-93450a.svg?style=for-the-badge&logo=nodedotjs" alt="Node.js 22 or later" /></a>
 </p>
 
 ---
@@ -78,7 +78,7 @@ The local server is the version to use inside company networks: nothing leaves y
 
 ## Requirements
 
-- **Node.js 20 or later** (`engines` in `package.json`); CI tests Node 20 and 22. The floor is the oldest Node.js LTS still in maintenance, so it is about to rise to 22 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)). See [`docs/POLICIES.md`](docs/POLICIES.md).
+- **Node.js 22 or later** (`engines` in `package.json`), the oldest Node.js LTS still in maintenance; CI tests Node 22 and 24. See [`docs/POLICIES.md`](docs/POLICIES.md).
 - **A current browser** for the UI. The client code is kept ES5-style so it runs on older iPad Safari.
 - **Chromium**, only for the end-to-end tests: `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`. Without it those tests skip.
 - **No runtime dependencies.** Playwright is the only dev dependency.
@@ -206,7 +206,7 @@ npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
 
 Edit `src/`, never `dist/`. The build checks its own output before writing: the HTML must round-trip exactly, `worker.js` must parse, and no module syntax may remain in the paste-able file. There is no `Makefile` yet ([#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52)) and no fuzzing.
 
-CI runs the tests, the traceability check and the build on Node 20 and 22, and a docs lint (markdownlint, codespell and a README structure check). [`DEVELOPMENT.md`](DEVELOPMENT.md) covers setup, the test suites, acceptance criteria and how to reproduce every CI gate locally.
+CI runs the tests, the traceability check and the build on Node 22 and 24, and a docs lint (markdownlint, codespell and a README structure check). [`DEVELOPMENT.md`](DEVELOPMENT.md) covers setup, the test suites, acceptance criteria and how to reproduce every CI gate locally.
 
 ---
 

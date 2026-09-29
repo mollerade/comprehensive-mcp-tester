@@ -4,12 +4,12 @@
 
 | What | Floor | Where it is set | Enforced by |
 | :--- | :--- | :--- | :--- |
-| Node.js (local server, build, tests) | 20 | `engines` in `package.json` | CI runs every suite on Node 20 and 22 |
+| Node.js (local server, build, tests) | 22 | `engines` in `package.json` | CI runs every suite on Node 22 and 24 |
 | Browser (the UI) | Older iPad Safari | Client JS is ES5-style by rule | Review; no automated check yet |
 
 **The rule.** The floor is the oldest Node.js LTS line still receiving maintenance updates, per the [Node.js release schedule](https://github.com/nodejs/Release#release-schedule). CI tests the floor and the active LTS. The floor rises only in a release whose `CHANGELOG.md` entry says so, together with `engines`, the CI matrix and this table.
 
-**Today.** Node 20 reached end of life on 2026-04-30, so under this rule the floor rises to 22 (maintained until 2027-04-30), with 24 as the active LTS. That raise is [#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58); until it ships, the floor stated everywhere is still 20.
+**Today.** The floor is 22 (maintained until 2027-04-30) and the active LTS is 24. It rose from 20 when Node 20 reached end of life on 2026-04-30 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)). Node 22 leaves maintenance on 2027-04-30, when the floor rises to 24.
 
 No compatibility is claimed with any distribution's packaged Node.js.
 

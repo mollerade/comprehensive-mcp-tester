@@ -4,7 +4,7 @@ Everything needed to work on MCP Tester: setup, the layout, the test suites, and
 
 ## Setup
 
-- Node.js 20 or later (see [`docs/POLICIES.md`](docs/POLICIES.md)).
+- Node.js 22 or later (see [`docs/POLICIES.md`](docs/POLICIES.md)).
 - `npm install`. Playwright is the only dependency, and only for the end-to-end tests.
 - For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one. Without it those tests skip rather than fail.
 
@@ -46,9 +46,9 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 
 | CI job | What it checks | Locally |
 | :--- | :--- | :--- |
-| Test (Node 20, 22) | Every suite, including e2e with Chromium | `npm test` |
-| Test (Node 20, 22) | Every acceptance criterion has a test | `npm run test:trace` |
-| Test (Node 20, 22) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `npm run build` |
+| Test (Node 22, 24) | Every suite, including e2e with Chromium | `npm test` |
+| Test (Node 22, 24) | Every acceptance criterion has a test | `npm run test:trace` |
+| Test (Node 22, 24) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `npm run build` |
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |

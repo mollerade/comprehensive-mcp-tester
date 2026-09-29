@@ -16,10 +16,12 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ### Changed
 
+- **Node.js 22 or later is now required** (was 20). Node 20 reached end of life on 2026-04-30; CI now tests Node 22 and 24 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)).
 - README restructured into the standard layout; the roadmap moved to `ROADMAP.md`.
 
 ### Fixed
 
+- `package-lock.json` recorded the project as version 0.8.0; it now matches `package.json` (0.10.0).
 - A late response from a previous connection no longer overwrites the current server's tools, session, auth challenge or diagnostics, and a disconnect drops in-flight work ([#39](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/39)).
 - The OAuth flow refuses a non-https authorization endpoint (http only on loopback), so a hostile authorization server cannot send the pop-up to a `javascript:` or `data:` URL ([#38](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/38)).
 - Untrusted MCP schema names are escaped in form field ids, closing a DOM-XSS path ([#37](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/37)).

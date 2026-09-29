@@ -72,7 +72,7 @@ The standard is applied in six phases, one per release. This page records where 
 ### 6. CI quality gates
 
 - **Has:**
-  - Every suite, end-to-end with Chromium included, on Node 20 and 22.
+  - Every suite, end-to-end with Chromium included, on Node 22 and 24.
   - The acceptance-criteria traceability check.
   - The build self-checks.
   - Markdown lint and spelling.
