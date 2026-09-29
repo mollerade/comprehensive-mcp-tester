@@ -4,11 +4,13 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { build } from '../scripts/build.mjs';
+import { join, dirname } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { build, platformViolations } from '../scripts/build.mjs';
+
+const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 import { assembleHtml } from '../src/ui/assemble.js';
 import { createServer } from '../src/hosts/node-server.js';
 import { startMockServer } from './fixtures/mock-mcp-server.mjs';
@@ -179,4 +181,32 @@ describe('Local Node server', () => {
     await new Promise((r) => s2.close(r));
     assert.equal(status, 200);
   });
+});
+
+test('AC-SPEC-ENGINE-07: platform-free', () => {
+  assert.deepEqual(platformViolations(join(ROOT_DIR, 'src', 'core')), []);
+  assert.doesNotThrow(() => build({ write: false }));
+
+  const dir = mkdtempSync(join(tmpdir(), 'core-'));
+  try {
+    mkdirSync(join(dir, 'compliance'));
+    writeFileSync(join(dir, 'compliance', 'bad.js'), "import { readFileSync } from 'node:fs';\n");
+    writeFileSync(join(dir, 'worker-only.js'), 'const r = new HTMLRewriter();\n');
+    const found = platformViolations(dir).join('\n');
+    assert.match(found, /bad\.js: imports a node: module/);
+    assert.match(found, /worker-only\.js: uses a Cloudflare-only API/);
+    assert.throws(() => build({ write: false, coreDir: dir }), /src\/core must stay platform-free/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the compliance engine runs unchanged inside the Worker bundle', () => {
+  const { sw } = build({ write: false });
+  const ctx = vm.createContext({ addEventListener: () => {}, Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console });
+  vm.runInContext(sw, ctx, { filename: 'worker.js' });
+  const report = vm.runInContext("runCompliance(COMPLIANCE_CATALOGUE, { claimedVersion: '2099-01-01' })", ctx);
+  assert.equal(report.bestEffort, true);
+  assert.equal(report.verdict, 'warn');
+  assert.equal(report.results.find((r) => r.id === 'MCP-VER-001').status, 'warn');
 });

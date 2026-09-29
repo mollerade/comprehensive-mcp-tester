@@ -8,6 +8,7 @@ How MCP Tester is put together, for contributors. For using it, see the [README]
 src/
   core/proxy.js         MCP proxy: timeouts, retries, timing, Accept repair. No platform code.
   core/oauth-client.js  The tester's OAuth client metadata document (CIMD) and callback path
+  core/compliance/      Spec compliance rule engine, catalogue and rules (pure: no network, no clock)
   hosts/cloudflare.js   Cloudflare adapter  → built into dist/worker.js and dist/worker.mjs
   hosts/node-server.js  Local adapter (plain node:http, no dependencies)
   ui/index.html         Page shell with @inline-css / @inline-js markers
@@ -26,7 +27,7 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 
 ## Rules that keep it that way
 
-- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports. Hosts inject `fetch`, `allowedOrigins` and `colo`. New core files must be added to the Worker concatenation in `scripts/build.mjs`.
+- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports; the build fails if anything there reaches for either. Hosts inject `fetch`, `allowedOrigins` and `colo`. New core files must be added to the Worker concatenation (`CORE_FILES` in `scripts/build.mjs`).
 - **Hosts are thin adapters.** A new runtime means a new adapter, not changes to core or UI.
 - **The UI ships as one self-contained HTML file.** `src/ui/assemble.js` inlines the CSS and JS, every host serves that one string, and the Worker embeds it.
 - **Client JS files are classic scripts sharing one global scope**, not ES modules, concatenated in `src/ui/js/ORDER.json` order. That keeps the shipped page a single file with no bundler. Top-level statements live only in `state.js` (first) and `main.js` (last); everything else is function declarations. The code is ES5-style (`var`, `function`, string concatenation) to run on older iPad Safari. Server-side code (core, hosts, build, tests) is modern ES modules.

@@ -44,7 +44,7 @@ Rule-based pass / warn / fail checks, keyed to the protocol version the server c
 
 | Issue | Part | Status |
 | :--- | :--- | :--- |
-| [#9](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/9) | Platform-free rule engine and catalogue format | In review |
+| [#9](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/9) | Platform-free rule engine and catalogue format | Done |
 | [#10](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/10) | JSON-RPC, transport and lifecycle rules (legacy and stateless) | Open |
 | [#11](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/11) | Capability, tools, resources, prompts and pagination rules | Open |
 | [#12](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/12) | Authorization rules built on the OAuth discovery trace | Open |

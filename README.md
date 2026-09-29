@@ -103,7 +103,7 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 
 | Component | Purpose | Use case |
 | :--- | :--- | :--- |
-| `src/core/` | MCP proxy (timeouts, retries, timing, Accept repair) and the OAuth client metadata document; no platform code | Shared by every host |
+| `src/core/` | MCP proxy (timeouts, retries, timing, Accept repair), the OAuth client metadata document, and the compliance rule engine; no platform code, checked by the build | Shared by every host |
 | `src/hosts/cloudflare.js` | Cloudflare adapter, built into `dist/worker.js` and `dist/worker.mjs` | Hosted use, from any device including an iPad |
 | `src/hosts/node-server.js` | Local adapter on plain `node:http`, bound to loopback | Use inside company networks |
 | `src/ui/` | The UI, assembled into one self-contained HTML page | Served unchanged by every host |
@@ -121,7 +121,7 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 | Exploring | Tools, resources and prompts; form or raw JSON-RPC; raw request and response panels | Shipped |
 | Authentication | MCP OAuth discovery, CIMD / DCR, PKCE, `iss` check; bearer, API key, client credentials | Shipped (0.10.0) |
 | Diagnostics | Log with timing, health monitor, ok / slow / failed timeline, latency chart | Shipped |
-| Compliance | Pass / warn / fail check against the protocol version the server claims | Planned ([roadmap 4](ROADMAP.md)) |
+| Compliance | Pass / warn / fail check against the protocol version the server claims | In progress: rule engine done, rules and report next ([roadmap 4](ROADMAP.md)) |
 | Workflow | Log-driven hints, flow diagram, replay, copy as cURL, variables, collections | Planned ([roadmap 5](ROADMAP.md)) |
 | Packaging | Docker image; signed Mac and Windows builds | Planned ([roadmap 6 and 7](ROADMAP.md)) |
 | Agent playground | Test tool descriptions with a local model | Planned ([roadmap 8](ROADMAP.md)) |

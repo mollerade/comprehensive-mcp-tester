@@ -27,6 +27,7 @@ Edit `src/`, never `dist/`: `dist/` is generated and ignored by git. How the pie
 - **hosts**: both Cloudflare bundles, executed as built, and the local server, including its security checks.
 - **ui-logic**: the shipped client JS in a VM. Covers the percentile and uptime maths, flap streaks, schema-based request suggestions and JSON-RPC ids.
 - **e2e**: Chromium drives the real UI through the local server to the mock MCP server. Covers both protocol eras, OAuth sign-in (pop-up and redirect), the `iss` mix-up rejection, client credentials, connect, filter, suggested requests, form and JSON execution, error responses, resources, prompts, log, diagnostics, theme, saved servers, timeouts and phone-width layout.
+- **compliance**: the spec compliance rule engine (`src/core/compliance/`), which grades recorded exchanges against the protocol version a server claims. Covers the catalogue format, rule selection by version, best effort for unknown versions, error isolation and determinism.
 - **tooling**: the repository's own scripts (the traceability check, the README check, the governance files) run as real processes or against throwaway fixture trees.
 
 The mock server (`tests/fixtures/mock-mcp-server.mjs`) should fail the same ways real servers do. New misbehaviour is a new scenario in `tests/fixtures/mock/scenarios/`, served on `/scenario/<name>/mcp`, not a new top-level path. `startMock({ port: 0 })` gives each test its own instance.
@@ -47,7 +48,7 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 | :--- | :--- | :--- |
 | Test (Node 20, 22) | Every suite, including e2e with Chromium | `npm test` |
 | Test (Node 20, 22) | Every acceptance criterion has a test | `npm run test:trace` |
-| Test (Node 20, 22) | The build and its self-checks | `npm run build` |
+| Test (Node 20, 22) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `npm run build` |
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |

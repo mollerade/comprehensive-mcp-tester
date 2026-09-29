@@ -23,13 +23,15 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 ## Architecture rules
 
 - **Edit `src/`, never `dist/`.** `dist/` is generated and gitignored.
-- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports. Hosts inject `fetch`, `allowedOrigins` and `colo`. The `/proxy` request/response envelope is a contract the UI depends on. Change it deliberately, and update both hosts and the tests together. `purpose: 'oauth'` (0.10.0) skips the MCP Accept/Content-Type repair for discovery and token calls. New core files must be added to the Worker concatenation in `scripts/build.mjs`.
+- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports. Hosts inject `fetch`, `allowedOrigins` and `colo`. The `/proxy` request/response envelope is a contract the UI depends on. Change it deliberately, and update both hosts and the tests together. `purpose: 'oauth'` (0.10.0) skips the MCP Accept/Content-Type repair for discovery and token calls. New core files must be added to the Worker concatenation (`CORE_FILES` in `scripts/build.mjs`). The build fails if anything under `src/core/` imports a `node:` module or uses a Cloudflare-only API.
 - **Hosts are thin adapters.** `src/hosts/cloudflare.js` (bundled into both Worker formats by the build) and `src/hosts/node-server.js`. A new runtime (Docker, desktop) means a new adapter, not changes to core or UI.
 - **The UI ships as ONE self-contained HTML file.** `src/ui/assemble.js` inlines `styles.css` and the JS files. Keep it that way: every host serves one string, and the Worker embeds it.
 - **Client JS files are classic scripts sharing one global scope**, not ES modules, concatenated in `src/ui/js/ORDER.json` order. Don't add `import`/`export` there. Top-level code only in `state.js` (first) and `main.js` (last); everything else is function declarations. New file → add it to ORDER.json.
 - **Client JS is ES5-style** (`var`, `function`, string concatenation) to match the existing code and run on older iPad Safari. The server-side code (core, hosts, build, tests) is modern ES modules.
 - **The build has zero dependencies** and must keep producing a `dist/worker.js` that pastes into the Cloudflare dashboard editor (Service Worker format, no `import`/`export`). The build self-checks this; don't weaken those checks.
 - **No runtime dependencies.** Playwright is the only devDependency. Adding any package needs a strong reason: corporate users will audit it.
+
+- **Compliance rules are data graded by a pure engine.** `src/core/compliance/engine.js` selects rules by the server's claimed version (unknown → newest set, marked best effort) and grades recorded exchanges; it never sends anything. A rule is `{ id: 'MCP-<CATEGORY>-<NNN>', title, category, severity: 'fail'|'warn', appliesTo, specRef (https), needsProbe?, check(ctx) }` in `rules/<category>.js`, listed in `catalogue.js`, and cites the spec section it enforces. Every rule needs a mock scenario that breaks it (`tests/fixtures/mock/scenarios/violations.mjs`).
 
 ## Security invariants (tested; keep them)
 
