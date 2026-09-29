@@ -45,9 +45,9 @@
  */
 import http from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
 import { reply, rpcErr, sleep } from './mock/protocol.mjs';
 import { resolveScenario, scenarioForIssuerPath, listScenarios, SCENARIOS } from './mock/scenarios/index.mjs';
+import { isMain } from '../../scripts/is-main.mjs';
 
 export { TOOLS, MODERN_VERSION } from './mock/protocol.mjs';
 
@@ -265,7 +265,7 @@ export function startMock({ port = 0, host = '127.0.0.1' } = {}) {
   return startMockServer(port, host);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
   const port = parseInt(process.env.PORT || '8788', 10);
   startMockServer(port).then((m) => {
     console.log(`Mock MCP server at ${m.url}`);

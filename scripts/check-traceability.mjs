@@ -17,7 +17,7 @@
  *   duplicate              one AC ID tagged on two scenarios
  *   pending past milestone an `@pending` AC with no test once package.json reaches its milestone
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, realpathSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -162,4 +162,6 @@ function main(argv) {
   process.exitCode = report.ok ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+// Self-contained on purpose (AC-QA-TRACE-07: node: imports only, runs when copied alone), so this
+// repeats scripts/is-main.mjs: compare real paths, or a symlinked path makes the check a silent pass.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main(process.argv.slice(2));

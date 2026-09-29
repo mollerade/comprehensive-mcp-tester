@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import vm from 'node:vm';
 import { assembleHtml } from '../src/ui/assemble.js';
+import { isMain } from './is-main.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -128,7 +129,7 @@ export function build({ write = true, coreDir = join(ROOT, 'src', 'core') } = {}
   return { html, sw, mod };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMain(import.meta.url)) {
   const { html, sw, mod } = build();
   const kb = (s) => (Buffer.byteLength(s) / 1024).toFixed(1) + ' KB';
   console.log(`MCP Tester ${pkg.version} built:`);

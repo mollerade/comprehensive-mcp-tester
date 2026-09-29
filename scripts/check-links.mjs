@@ -9,9 +9,9 @@
  * exists, and a #fragment must match a heading in the target, slugged the
  * way GitHub does it. External (http, mailto) links are not fetched.
  */
-import { readFileSync, readdirSync, existsSync, statSync, realpathSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './is-main.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git']);
 const LINK = /!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)|\bsrc="([^"]+)"/g;
@@ -96,5 +96,4 @@ function main(argv) {
   }
 }
 
-// Real paths on both sides: a symlinked checkout must not turn the check into a silent pass
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main(process.argv.slice(2));
+if (isMain(import.meta.url)) main(process.argv.slice(2));

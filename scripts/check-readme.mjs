@@ -15,8 +15,8 @@
  * not fit a diagnostic UI; change both together.
  */
 import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isMain } from './is-main.mjs';
 
 export const README_SECTIONS = [
   'Contents', 'Install', 'Requirements', 'Quick Start', 'The {name} ecosystem',
@@ -88,4 +88,4 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+if (isMain(import.meta.url)) main(process.argv.slice(2));
