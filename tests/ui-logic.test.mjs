@@ -289,6 +289,17 @@ describe('authorization helpers', () => {
     assert.equal(r.nested.client_secret, '[redacted, 3 chars]');
   });
 
+  test('authorization endpoint must be https, or http only on loopback', () => {
+    assert.equal(c.isNavigableAuthUrl('https://as.example/authorize'), true);
+    assert.equal(c.isNavigableAuthUrl('http://127.0.0.1:9000/authorize'), true, 'loopback http is allowed for local testing');
+    assert.equal(c.isNavigableAuthUrl('http://localhost/authorize'), true);
+    assert.equal(c.isNavigableAuthUrl('http://as.example/authorize'), false, 'plain http to a remote host is refused');
+    assert.equal(c.isNavigableAuthUrl('javascript:window.opener.x=1'), false, 'a javascript: URL never navigates');
+    assert.equal(c.isNavigableAuthUrl('data:text/html,<script>1</script>'), false);
+    assert.equal(c.isNavigableAuthUrl('not a url'), false);
+    assert.equal(c.isNavigableAuthUrl(''), false);
+  });
+
   test('form encoding round-trips and skips empty values', () => {
     const enc = c.formEncode({ a: 'x y', b: 'https://h/p?q=1', skip: '', none: null });
     assert.equal(enc, 'a=x%20y&b=https%3A%2F%2Fh%2Fp%3Fq%3D1');

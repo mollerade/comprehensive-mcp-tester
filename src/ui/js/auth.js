@@ -20,6 +20,17 @@ function isLoopbackHost(h) {
   return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
 }
 
+/* The authorization endpoint drives a top-level browser navigation, so it must be
+   https (or http on loopback for local testing). Anything else, such as a javascript:
+   URL handed back by a hostile or misconfigured authorization server, is refused
+   before we navigate the pop-up or the page. */
+function isNavigableAuthUrl(url) {
+  var u;
+  try { u = new URL(url); } catch (e) { return false; }
+  if (u.protocol === 'https:') return true;
+  return u.protocol === 'http:' && isLoopbackHost(u.hostname);
+}
+
 /* The Bearer challenge's parameters, e.g. resource_metadata, scope, error */
 function parseWwwAuthenticate(header) {
   if (!header) return null;
@@ -331,6 +342,10 @@ function startSignIn() {
       throw new Error('no PKCE S256');
     }
     if (!d.as.authorization_endpoint) { traceStep('Authorization endpoint', 'fail', 'No authorization_endpoint in the metadata'); throw new Error('no authorization_endpoint'); }
+    if (!isNavigableAuthUrl(d.as.authorization_endpoint)) {
+      traceStep('Authorization endpoint', 'fail', 'authorization_endpoint must be https (or http on loopback); refusing to open "' + d.as.authorization_endpoint + '"');
+      throw new Error('unsafe authorization_endpoint');
+    }
     return registerClient(d.as).then(function(client) {
       return makePkce().then(function(pkce) {
         var st = randomString(16);
