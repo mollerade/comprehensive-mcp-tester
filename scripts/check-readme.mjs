@@ -9,14 +9,15 @@
  * <h1> name, then these second-level sections in this order, with every
  * {{UPPER_SNAKE_CASE}} template token filled in. `{name}` is the <h1> text.
  * The list mirrors the portfolio's README template, which lives outside this
- * repository; change both together.
+ * repository, minus its Ecosystem comparison and Benchmarks sections, which do
+ * not fit a diagnostic UI; change both together.
  */
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export const README_SECTIONS = [
   'Contents', 'Install', 'Requirements', 'Quick Start', 'The {name} ecosystem',
-  'Capabilities at a glance', 'Ecosystem comparison', 'Benchmarks', 'Features',
+  'Capabilities at a glance', 'Features',
   'Configuration', 'Examples', 'When not to use {name}', 'Development', 'Security',
   'Documentation', 'Stability guarantees', 'License',
 ];

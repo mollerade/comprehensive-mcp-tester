@@ -30,7 +30,7 @@ test('sections out of order are caught', () => {
 });
 
 test('a missing section and an extra one are caught', () => {
-  assert.match(checkReadme(README.replace('## Benchmarks', '## Roadmap')).join('\n'), /expected "## Benchmarks"/);
+  assert.match(checkReadme(README.replace('## Features', '## Roadmap')).join('\n'), /expected "## Features"/);
   assert.match(checkReadme(README + '\n## Roadmap\n').join('\n'), /unexpected section "## Roadmap"/);
 });
 

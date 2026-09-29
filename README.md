@@ -11,10 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mollerade/comprehensive-mcp-tester/actions"><img src="https://github.com/mollerade/comprehensive-mcp-tester/workflows/CI/badge.svg?style=for-the-badge&logo=github" alt="Build" /></a>
+  <a href="https://github.com/mollerade/comprehensive-mcp-tester/actions"><img src="https://img.shields.io/github/actions/workflow/status/mollerade/comprehensive-mcp-tester/ci.yml?branch=main&style=for-the-badge&logo=github&label=build" alt="Build" /></a>
   <a href="#install"><img src="https://img.shields.io/badge/registry-not%20published-lightgrey?style=for-the-badge&color=fc8d62&logo=nodedotjs" alt="Registry" /></a>
   <a href="#documentation"><img src="https://img.shields.io/badge/docs-in%20repo-blue?style=for-the-badge&labelColor=555555&logo=markdown" alt="Docs" /></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/mollerade/comprehensive-mcp-tester"><img src="https://img.shields.io/ossf-scorecard/github.com/mollerade/comprehensive-mcp-tester?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" /></a>
   <a href="https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51"><img src="https://img.shields.io/badge/license-not%20yet%20chosen-blue.svg?style=for-the-badge" alt="License: not yet chosen" /></a>
   <a href="https://github.com/mollerade/comprehensive-mcp-tester/blob/main/docs/POLICIES.md"><img src="https://img.shields.io/badge/node-20%2B-93450a.svg?style=for-the-badge&logo=nodedotjs" alt="Node.js 20 or later" /></a>
 </p>
@@ -36,8 +35,6 @@
 **Library reference**
 
 - [Capabilities at a glance](#capabilities-at-a-glance) — the current surface by theme
-- [Ecosystem comparison](#ecosystem-comparison) — not written yet: no evidence gathered
-- [Benchmarks](#benchmarks) — not applicable to a diagnostic UI
 - [Features](#features) — module-level capability list
 - [Configuration](#configuration) — core options
 - [Examples](#examples) — runnable example index
@@ -128,18 +125,6 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 | Workflow | Log-driven hints, flow diagram, replay, copy as cURL, variables, collections | Planned ([roadmap 5](ROADMAP.md)) |
 | Packaging | Docker image; signed Mac and Windows builds | Planned ([roadmap 6 and 7](ROADMAP.md)) |
 | Agent playground | Test tool descriptions with a local model | Planned ([roadmap 8](ROADMAP.md)) |
-
----
-
-## Ecosystem comparison
-
-Not written yet. A comparison with other MCP clients needs evidence (versions tested, features verified), and none has been gathered, so `docs/COMPARISON.md` does not exist rather than carrying unverified claims.
-
----
-
-## Benchmarks
-
-Not applicable: MCP Tester is a diagnostic UI, and nothing in it is performance-critical enough to benchmark. It measures the servers it talks to (latency, time to first byte, proxy overhead) rather than being measured itself, so `docs/BENCHMARKS.md` does not exist.
 
 ---
 

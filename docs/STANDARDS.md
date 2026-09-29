@@ -37,7 +37,7 @@ The standard is applied in six phases, one per release. This page records where 
 - **Not applicable:**
   - A registry badge, as nothing is published.
   - API documentation, as this is not a library.
-  - Benchmarks and a comparison matrix: there is nothing to benchmark, and no evidence has been gathered for a comparison. The README states each reason.
+  - Benchmarks and a comparison matrix: there is nothing to benchmark, and no evidence has been gathered for a comparison, so the README leaves both sections out.
 
 ### 2. Documentation
 
