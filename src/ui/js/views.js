@@ -145,10 +145,13 @@ function renderToolDetail(tool, idx) {
       html += '<span class="param-type">' + esc(String(pt)) + '</span>';
       html += '<span class="param-tag ' + (reqd ? 'req' : 'opt') + '">' + (reqd ? 'required' : 'optional') + '</span></div>';
       if (p.description) html += '<div class="param-desc">' + esc(p.description) + '</div>';
-      var inputId = 'param-' + idx + '-' + n;
-      if (isObj) html += '<textarea class="param-input" id="' + inputId + '" rows="3" oninput="saveFormDraft(\'' + key + '\',' + idx + ')"></textarea>';
-      else if (pt === 'boolean') html += '<select class="param-input" id="' + inputId + '" style="appearance:auto" onchange="saveFormDraft(\'' + key + '\',' + idx + ')"><option value="">-</option><option value="true">true</option><option value="false">false</option></select>';
-      else html += '<input class="param-input" id="' + inputId + '" type="' + (pt === 'number' || pt === 'integer' ? 'number' : 'text') + '" oninput="saveFormDraft(\'' + key + '\',' + idx + ')">';
+      // The property name is server-controlled, so it must be escaped before it enters
+      // the id attribute (esc() neutralises " < > & in a double-quoted value). The browser
+      // decodes the entities back, so getElementById() still matches the raw name.
+      var inputId = 'param-' + idx + '-' + n, idAttr = esc(inputId);
+      if (isObj) html += '<textarea class="param-input" id="' + idAttr + '" rows="3" oninput="saveFormDraft(\'' + key + '\',' + idx + ')"></textarea>';
+      else if (pt === 'boolean') html += '<select class="param-input" id="' + idAttr + '" style="appearance:auto" onchange="saveFormDraft(\'' + key + '\',' + idx + ')"><option value="">-</option><option value="true">true</option><option value="false">false</option></select>';
+      else html += '<input class="param-input" id="' + idAttr + '" type="' + (pt === 'number' || pt === 'integer' ? 'number' : 'text') + '" oninput="saveFormDraft(\'' + key + '\',' + idx + ')">';
       html += '</div>';
     }
   } else {
@@ -192,7 +195,8 @@ function renderPromptDetail(prompt, idx) {
       html += '<span class="param-tag ' + (areqd ? 'req' : 'opt') + '">' + (areqd ? 'required' : 'optional') + '</span>';
       html += '</div>';
       if (args[j].description) html += '<div class="param-desc">' + esc(args[j].description) + '</div>';
-      html += '<input class="param-input" id="prompt-' + idx + '-' + args[j].name + '" type="text"></div>';
+      // The argument name is server-controlled, so escape it before it enters the id attribute.
+      html += '<input class="param-input" id="prompt-' + idx + '-' + esc(args[j].name) + '" type="text"></div>';
     }
     html += '</div>';
   }

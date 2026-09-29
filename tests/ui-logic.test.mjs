@@ -305,3 +305,36 @@ describe('authorization helpers', () => {
     assert.deepEqual({ ...c.authHeaders() }, { 'X-Key': 'K' });
   });
 });
+
+describe('untrusted server data never breaks out of an id attribute (XSS)', () => {
+  // A malicious/compromised MCP server controls tool schema property names and
+  // prompt argument names. They render into id="..." attributes, so a raw name
+  // containing a quote would otherwise break out into markup.
+  const PAYLOAD = 'x"><img src=x onerror="alert(1)">';
+
+  test('tool schema property name is escaped in the field id', () => {
+    const tool = { name: 'evil', inputSchema: { type: 'object', properties: { [PAYLOAD]: { type: 'string' } } } };
+    const html = c.renderToolDetail(tool, 0);
+    assert.ok(!html.includes('"><img'), 'the quote must not close the id attribute');
+    assert.ok(!html.includes('<img'), 'no <img element may appear');
+    assert.ok(!html.includes('onerror="'), 'no live event handler (its quote is escaped away)');
+    assert.ok(html.includes('id="param-0-x&quot;&gt;&lt;img'), 'the name is present, fully escaped');
+  });
+
+  test('prompt argument name is escaped in the field id', () => {
+    const prompt = { name: 'evil', arguments: [{ name: PAYLOAD }] };
+    const html = c.renderPromptDetail(prompt, 0);
+    assert.ok(!html.includes('"><img'), 'the quote must not close the id attribute');
+    assert.ok(!html.includes('<img'), 'no <img element may appear');
+    assert.ok(html.includes('id="prompt-0-x&quot;&gt;&lt;img'), 'the name is present, fully escaped');
+  });
+
+  test('an ordinary name still yields the plain id the readers look up', () => {
+    const tool = { name: 'ok', inputSchema: { type: 'object', properties: { category: { type: 'string' } } } };
+    const html = c.renderToolDetail(tool, 0);
+    // esc() is a no-op for a safe name, so getElementById('param-0-category') keeps matching.
+    assert.ok(html.includes('id="param-0-category"'));
+    const prompt = c.renderPromptDetail({ name: 'ok', arguments: [{ name: 'api_id' }] }, 0);
+    assert.ok(prompt.includes('id="prompt-0-api_id"'));
+  });
+});
