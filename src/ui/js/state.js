@@ -52,5 +52,5 @@ var MODERN_VERSIONS = ['2026-07-28'];
 var LEGACY_VERSION = '2025-11-25';
 var MODERN_ERROR_CODES = [-32020, -32021, -32022];   // HeaderMismatch, MissingRequiredClientCapability, UnsupportedProtocolVersion
 var MCP_META = 'io.modelcontextprotocol/';
-var CLIENT_INFO = { name: 'MCP Tester', version: '0.10.0' };
+var CLIENT_INFO = { name: 'MCP Tester', version: '0.0.0' };
 

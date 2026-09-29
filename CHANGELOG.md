@@ -2,7 +2,7 @@
 
 All notable changes to MCP Tester are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project is pre-1.0, so any release may change behaviour (see [Stability guarantees](README.md#stability-guarantees)).
 
-Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits that set each version.
+Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 ([policy](docs/POLICIES.md#versioning)). The 0.8.0 to 0.10.0 entries below record the history before releases started: those numbers were set in the files but never tagged or released, and their dates are those of the commits that set them.
 
 ## [Unreleased]
 
@@ -42,6 +42,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 - **The Cloudflare Worker is closed by default.** It refuses every target until `MCP_TESTER_ALLOWED_TARGETS` is set (`*` for any public host); before, an unset allowlist made a fresh deployment an open fetch relay. **Set the variable before redeploying.** `ALLOWED_ORIGINS` still works as the older name, and now also accepts exact origins.
 - On the local server, a loopback or private target, such as the mock server, must now be listed: `MCP_TESTER_ALLOWED_TARGETS=http://127.0.0.1:8788 npm start`.
+- **Version numbering restarts at 0.0.1.** Nothing was ever released under 0.8.0 to 0.10.0, so the first release is 0.0.1 under the versioning policy; until then the version reads 0.0.0.
 - **Node.js 22 or later is now required** (was 20). Node 20 reached end of life on 2026-04-30; CI now tests Node 22 and 24 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)).
 - README restructured into the standard layout; the roadmap moved to `ROADMAP.md`.
 
@@ -56,7 +57,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 - With pop-ups blocked, sign-in saved a client secret, if one was entered, in `sessionStorage` across the redirect. It is no longer saved; a sign-in that needs it asks for it again on return ([#42](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/42)).
 - The request Log kept every entry, so a health monitor left running grew memory and re-render cost without bound; it now keeps the newest 1000 ([#40](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/40)).
 - The local server silently exited without starting when run from a path that goes through a symlink (for example macOS's `/tmp` or a Homebrew prefix), and with `PORT=0` it announced port 0 instead of the port it bound.
-- `package-lock.json` recorded the project as version 0.8.0; it now matches `package.json` (0.10.0).
+- `package-lock.json` recorded the project as version 0.8.0 while `package.json` said 0.10.0; the two now always agree, and CI checks it.
 - A late response from a previous connection no longer overwrites the current server's tools, session, auth challenge or diagnostics, and a disconnect drops in-flight work ([#39](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/39)).
 - The OAuth flow refuses a non-https authorization endpoint (http only on loopback), so a hostile authorization server cannot send the pop-up to a `javascript:` or `data:` URL ([#38](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/38)).
 - Untrusted MCP schema names are escaped in form field ids, closing a DOM-XSS path ([#37](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/37)).

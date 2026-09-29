@@ -7,7 +7,7 @@ Feature: AC traceability checker (npm run test:trace)
 
   @AC-QA-TRACE-01 @suite:tooling
   Scenario: Covered AC passes
-    Given docs/acceptance/v0.10.1/QA-TRACE.feature defines @AC-QA-TRACE-01 and a test titled "AC-QA-TRACE-01: ..." exists
+    Given docs/acceptance/v0.0.1/QA-TRACE.feature defines @AC-QA-TRACE-01 and a test titled "AC-QA-TRACE-01: ..." exists
     When npm run test:trace runs
     Then it exits 0 and lists AC-QA-TRACE-01 as covered with the test file path
 
@@ -31,11 +31,11 @@ Feature: AC traceability checker (npm run test:trace)
 
   @AC-QA-TRACE-05 @suite:tooling
   Scenario: Pending ACs only pass until their milestone
-    Given package.json version is 0.10.1
-    And a scenario tagged @pending lives under docs/acceptance/v0.10.2/
+    Given package.json version is 0.0.1
+    And a scenario tagged @pending lives under docs/acceptance/v0.0.2/
     When the checker runs
     Then the AC is reported as pending and the exit code is 0
-    And when the same fixture is run with version 0.10.2 the exit code is 1 with "pending past milestone: <ID>"
+    And when the same fixture is run with version 0.0.2 the exit code is 1 with "pending past milestone: <ID>"
 
   @AC-QA-TRACE-06 @suite:tooling
   Scenario: Machine-readable output
