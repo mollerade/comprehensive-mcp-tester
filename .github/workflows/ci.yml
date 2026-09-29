@@ -67,7 +67,11 @@ jobs:
 
       - name: User manual builds with no warnings
         run: |
-          pip install --require-hashes -r docs/manual/requirements.txt
+          for attempt in 1 2 3; do   # a package released minutes ago can be missing from a PyPI mirror for a while
+            pip install --require-hashes -r docs/manual/requirements.txt && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 30
+          done
           make docs
 
       - name: Markdown style

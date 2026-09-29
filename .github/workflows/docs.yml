@@ -25,7 +25,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install --require-hashes -r docs/manual/requirements.txt
+      - name: Install the pinned MkDocs
+        run: |
+          for attempt in 1 2 3; do   # a package released minutes ago can be missing from a PyPI mirror for a while
+            pip install --require-hashes -r docs/manual/requirements.txt && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 30
+          done
 
       - run: make docs
 
