@@ -9,6 +9,7 @@ function addLog(dir, method, detail, httpStatus, respHeaders, res) {
     overheadMs: res ? res.overheadMs : null,
     time: new Date()
   });
+  if (state.log.length > LOG_MAX) state.log.length = LOG_MAX;   // drop the oldest
   updateBadges();
   if (state.activeTab === 'log') renderTab();
 }

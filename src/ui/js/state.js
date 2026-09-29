@@ -38,6 +38,7 @@ var REDACT_KEYS = ['access_token', 'refresh_token', 'id_token', 'client_secret',
                    'password', 'assertion', 'client_assertion', 'registration_access_token'];
 
 var STRIP_MAX = 120;
+var LOG_MAX = 1000;       // newest request log entries kept; a monitor left running must not grow it without bound
 
 /* Protocol eras (spec 2026-07-28, "Versioning and Compatibility"):
    modern = stateless, version + identity in every request's _meta, mirrored into headers;

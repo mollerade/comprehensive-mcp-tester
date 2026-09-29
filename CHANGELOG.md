@@ -23,6 +23,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ### Fixed
 
+- The request Log kept every entry, so a health monitor left running grew memory and re-render cost without bound; it now keeps the newest 1000 ([#40](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/40)).
 - The local server silently exited without starting when run from a path that goes through a symlink (for example macOS's `/tmp` or a Homebrew prefix), and with `PORT=0` it announced port 0 instead of the port it bound.
 - `package-lock.json` recorded the project as version 0.8.0; it now matches `package.json` (0.10.0).
 - A late response from a previous connection no longer overwrites the current server's tools, session, auth challenge or diagnostics, and a disconnect drops in-flight work ([#39](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/39)).

@@ -349,3 +349,14 @@ describe('untrusted server data never breaks out of an id attribute (XSS)', () =
     assert.ok(prompt.includes('id="prompt-0-api_id"'));
   });
 });
+
+describe('request log', () => {
+  test('AC-PERF-LOG-01: the log is bounded', () => {
+    const cap = c.LOG_MAX;
+    assert.ok(Number.isInteger(cap) && cap > 0, 'LOG_MAX must be a positive integer');
+    for (let i = 0; i < cap + 250; i++) c.addLog('req', 'tools/list', { body: { n: i } }, null, null, null);
+    assert.equal(c.state.log.length, cap);
+    assert.deepEqual(c.state.log[0].body, { n: cap + 249 }, 'the newest entry is first');
+    assert.deepEqual(c.state.log[cap - 1].body, { n: 250 }, 'the oldest entries are the ones dropped');
+  });
+});
