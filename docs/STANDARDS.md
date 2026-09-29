@@ -31,10 +31,8 @@ The standard is applied in six phases, one per release. This page records where 
   - The standard README layout: pitch, badges, contents, install, requirements, quick start, when not to use, security, documentation, stability, licence.
   - The README section order, unfilled template tokens, and any stated current version (against `package.json`) are checked in CI (`npm run check:readme`).
   - A stability section naming what counts as breaking, and a security section that leads with private reporting and states the resource limits and the fuzzing status.
-- **Missing, and each needs the author's decision:**
-  - A licence (#51). The badge and licence section say so rather than guess one.
-  - A logo.
-  - A deprecation window and a rule for raising the Node floor (#7).
+  - A logo, a stated versioning rule, a deprecation window, and a rule for raising the Node floor ([`docs/POLICIES.md`](POLICIES.md)).
+- **Missing, and it needs the author's decision:** a licence (#51). The badge and licence section say so rather than guess one.
 - **Missing, and work for later phases:** install snippets exercised in CI; a rendered manual (#53).
 - **Not applicable:**
   - A registry badge, as nothing is published.

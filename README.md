@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: NOASSERTION (no licence chosen yet: https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51) -->
 
 <p align="center">
-  <!-- No logo yet: the project has no artwork. -->
+  <img src="docs/assets/logo.svg" alt="MCP Tester logo" width="128" />
 </p>
 
 <h1 align="center">MCP Tester</h1>
@@ -78,7 +78,7 @@ The local server is the version to use inside company networks: nothing leaves y
 
 ## Requirements
 
-- **Node.js 20 or later** (`engines` in `package.json`); CI tests Node 20 and 22. See [`docs/POLICIES.md`](docs/POLICIES.md).
+- **Node.js 20 or later** (`engines` in `package.json`); CI tests Node 20 and 22. The floor is the oldest Node.js LTS still in maintenance, so it is about to rise to 22 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)). See [`docs/POLICIES.md`](docs/POLICIES.md).
 - **A current browser** for the UI. The client code is kept ES5-style so it runs on older iPad Safari.
 - **Chromium**, only for the end-to-end tests: `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`. Without it those tests skip.
 - **No runtime dependencies.** Playwright is the only dev dependency.
@@ -246,7 +246,7 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
 ## Stability guarantees
 
-MCP Tester is pre-1.0 (currently 0.10.0). Before 1.0 each minor release has added one roadmap item, and any release may change the UI.
+MCP Tester is pre-1.0 (currently 0.10.0). Every release increments the version by exactly 0.0.1 (0.10.0, then 0.10.1, 0.10.2, ...); any release may change the UI.
 
 **What counts as breaking.** A change is breaking when it changes what someone outside the UI relies on, even if no code signature moves:
 
@@ -255,7 +255,9 @@ MCP Tester is pre-1.0 (currently 0.10.0). Before 1.0 each minor release has adde
 - **The configuration variables** in [Configuration](#configuration): a rename or a changed default is breaking for existing deployments.
 - **The mock server's scenario names and paths**, which other projects can use to test their servers.
 
-A breaking change is listed under **Changed** or **Removed** in [`CHANGELOG.md`](CHANGELOG.md). No deprecation window is defined yet; that belongs to the versioning policy in [#7](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/7). The Node.js floor is in [`docs/POLICIES.md`](docs/POLICIES.md).
+**Deprecation window.** Before any of these is removed or changed incompatibly, it is announced under **Deprecated** in [`CHANGELOG.md`](CHANGELOG.md) and keeps working for at least one release. The breaking change itself is listed under **Changed** or **Removed**.
+
+**Toolchain.** The Node.js floor is the oldest LTS line still in maintenance and rises only in a release that says so; the rule and the current floor are in [`docs/POLICIES.md`](docs/POLICIES.md).
 
 ---
 
