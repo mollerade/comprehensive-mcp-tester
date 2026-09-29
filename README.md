@@ -33,6 +33,8 @@ npm run mock            # http://127.0.0.1:8788/mcp   (plus /slow /hang /fail /s
 
 `/mcp` and the failure paths behave like a pre-2026 server (with an `initialize` handshake and sessions). `/modern` speaks only the stateless 2026-07-28 protocol, and `/dual` speaks both. The tester works out which one it's talking to. The status pill tooltip shows the protocol version and whether the connection is stateless or legacy.
 
+Every behaviour is also a named scenario at `/scenario/<name>/mcp`, including deliberate spec violations such as `wrong-jsonrpc-version`, `id-mismatch` and `as-no-s256`. `GET /__scenarios` lists them all, and adding `?delay=<ms>` to any request makes it arrive late.
+
 | Variable | Where | Meaning |
 |---|---|---|
 | `ALLOWED_ORIGINS` | both | Comma-separated hosts the proxy may reach, e.g. `developer.hsbc.com`. Include your authorization server's host if you sign in with OAuth. Empty means any. |
@@ -91,9 +93,9 @@ Edit files in `src/`, never in `dist/`. The build checks its own output before w
 
 ## Tests
 
-`npm test` runs 131 tests with Node's built-in runner:
+`npm test` runs 143 tests with Node's built-in runner:
 
-- **proxy**: the core against a mock server. Covers timing, timeouts, retries with backoff, network failures, Accept repair, header filtering and the allowlist.
+- **proxy**: the core against a mock server. Covers timing, timeouts, retries with backoff, network failures, Accept repair, header filtering and the allowlist. It also covers the mock server's scenario registry: discovery, the original paths as aliases, parallel instances, the delay knob, and that each violation scenario breaks the rule it names.
 - **hosts**: both Cloudflare bundles, executed as built, and the local server, including its security checks.
 - **ui-logic**: the shipped client JS in a VM. Covers the percentile and uptime maths, flap streaks, schema-based request suggestions and JSON-RPC ids.
 - **e2e**: Chromium drives the real UI through the local server to the mock MCP server. Covers both protocol eras, OAuth sign-in (pop-up and redirect), the `iss` mix-up rejection, client credentials, connect, filter, suggested requests, form and JSON execution, error responses, resources, prompts, log, diagnostics, theme, saved servers, timeouts and phone-width layout.
