@@ -38,3 +38,27 @@ jobs:
         with:
           name: mcp-tester-dist
           path: dist/
+
+  docs-lint:
+    name: Docs lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: README follows the template layout
+        run: npm run check:readme
+
+      - name: Markdown style
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        with:
+          globs: '**/*.md'
+
+      - name: Spelling
+        uses: codespell-project/actions-codespell@e3258cca84ce02b0bb36a3d41f2c18f719a0cc1a # v2.4.3
+        with:
+          # The action ignores .codespellrc's skip list, so repeat it here
+          skip: ./node_modules,./dist,./package-lock.json,./.git
