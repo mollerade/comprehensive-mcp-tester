@@ -11,6 +11,7 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +34,20 @@ jobs:
       - name: Install Chromium for end-to-end tests
         run: npx playwright install --with-deps chromium
 
-      - run: npm test
+      - name: Every test suite, with a JUnit report
+        run: npm run test:ci
+
+      - name: Failing tests by acceptance criterion
+        if: always()
+        run: node scripts/ci-summary.mjs "reports/junit-node${{ matrix.node }}.xml"
+
+      - name: Upload the JUnit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-node${{ matrix.node }}
+          path: reports/
+          if-no-files-found: error
 
       - name: Every acceptance criterion has a test
         run: npm run test:trace
@@ -62,6 +76,7 @@ jobs:
   docs-lint:
     name: Docs lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -103,6 +118,7 @@ jobs:
     name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

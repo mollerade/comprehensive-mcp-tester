@@ -6,7 +6,7 @@ Everything needed to work on MCP Tester: setup, the layout, the test suites, and
 
 - Node.js 22 or later (see [`docs/POLICIES.md`](docs/POLICIES.md)).
 - `npm install`. Playwright is the only dependency, and only for the end-to-end tests.
-- For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one. Without it those tests skip rather than fail.
+- For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one (then only that one is tried). Without it those tests skip locally; with `CI=true` they fail, so a broken browser install cannot hide UI regressions in CI.
 
 The `Makefile` wraps the npm scripts (`make help` lists every target), so either works:
 
@@ -51,7 +51,7 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 
 | CI job | What it checks | Locally |
 | :--- | :--- | :--- |
-| Test (Node 22, 24) | Every suite, including e2e with Chromium | `npm test` |
+| Test (Node 22, 24) | Every suite, including e2e with Chromium, which fails rather than skips when `CI=true`; a JUnit report per Node version, uploaded, with failing tests by acceptance criterion in the job summary | `npm run test:ci` (writes `reports/junit-node<major>.xml`) |
 | Test (Node 22, 24) | Every acceptance criterion has a test | `npm run test:trace` |
 | Test (Node 22, 24) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `make build` |
 | Test (Node 22, 24) | A staged install puts the `mcp-tester` command in place | `make DESTDIR=/tmp/stage install` |
