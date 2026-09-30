@@ -98,6 +98,18 @@ function banner(format) {
   ].join('\n');
 }
 
+/** The build's checks on its own output; throws on the first failure, before anything is written */
+function selfCheck(html, sw, mod) {
+  const roundTrip = vm.runInNewContext(toTemplateLiteral(html));
+  if (roundTrip !== html) throw new Error('HTML template literal does not round-trip');
+  new vm.Script(sw, { filename: 'worker.js' });                    // throws on syntax error
+  if (/^\s*(import|export)\s/m.test(sw)) throw new Error('module syntax left in worker.js');
+  if ((mod.match(/^export\s/gm) || []).length !== 1) throw new Error('worker.mjs must have exactly one export');
+  for (const [name, text] of [['worker.js', sw], ['worker.mjs', mod]]) {
+    if (!text.split('\n')[0].includes('v' + pkg.version)) throw new Error(name + ' must name v' + pkg.version + ' on its first line');
+  }
+}
+
 export function build({ write = true, coreDir = join(ROOT, 'src', 'core') } = {}) {
   const platform = platformViolations(coreDir);
   if (platform.length) throw new Error('src/core must stay platform-free:\n  ' + platform.join('\n  '));
@@ -119,15 +131,7 @@ export function build({ write = true, coreDir = join(ROOT, 'src', 'core') } = {}
     '  },\n' +
     '};\n';
 
-  // ── self-checks ──
-  const roundTrip = vm.runInNewContext(toTemplateLiteral(html));
-  if (roundTrip !== html) throw new Error('HTML template literal does not round-trip');
-  new vm.Script(sw, { filename: 'worker.js' });                    // throws on syntax error
-  if (/^\s*(import|export)\s/m.test(sw)) throw new Error('module syntax left in worker.js');
-  if ((mod.match(/^export\s/gm) || []).length !== 1) throw new Error('worker.mjs must have exactly one export');
-  for (const [name, text] of [['worker.js', sw], ['worker.mjs', mod]]) {
-    if (!text.split('\n')[0].includes('v' + pkg.version)) throw new Error(name + ' must name v' + pkg.version + ' on its first line');
-  }
+  selfCheck(html, sw, mod);
 
   if (write) {
     mkdirSync(DIST, { recursive: true });
