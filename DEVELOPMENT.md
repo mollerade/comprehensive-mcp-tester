@@ -79,8 +79,8 @@ Every release increments the version by exactly 0.0.1 and is built from `feat/v<
 
 **Before tagging**, on the release branch:
 
-1. Bump the version everywhere it appears: `package.json`, `package-lock.json` (`npm install --package-lock-only`), `CLIENT_INFO` in `src/ui/js/state.js`, and "currently X.Y.Z" in the README. `make versions` and `make readme` fail until they all agree.
-2. Move the `Unreleased` entries in `CHANGELOG.md` under a `## [X.Y.Z] - <date>` heading.
+1. `npm run version:bump`: sets the next version (exactly +0.0.1) in `package.json`, `package-lock.json`, `CLIENT_INFO` in `src/ui/js/state.js` and the README, and moves the `Unreleased` entries in `CHANGELOG.md` under a `## [X.Y.Z] - <date>` heading. `npm run version:check` (also run in CI) rejects any version that is not the last release or exactly the next one.
+2. Check the new changelog section reads well; edit its wording if needed.
 3. Write `docs/releases/vX.Y.Z.md`: the release's two to four highlights ([format](docs/releases/README.md)).
 4. Merge the release pull request into `main`.
 

@@ -58,6 +58,11 @@ jobs:
       - name: Every version reference agrees
         run: npm run check:versions
 
+      - name: The version is the last release or exactly the next one
+        run: |
+          git fetch --quiet --tags origin
+          npm run version:check
+
       - run: make build
 
       - name: The build is reproducible
