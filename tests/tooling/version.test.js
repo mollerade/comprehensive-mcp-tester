@@ -50,13 +50,13 @@ function run(dir, ...args) {
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 const read = (dir, f) => readFileSync(join(dir, f), 'utf8');
-const versionIn = (dir) => JSON.parse(read(dir, 'package.json')).version;
+const versionOf = (dir) => JSON.parse(read(dir, 'package.json')).version;
 
 test('AC-QA-VERSION-01: normal bump', () => {
   const dir = tree('0.0.1');
   const r = run(dir, 'bump', '--date=2026-10-01');
   assert.equal(r.code, 0, r.err);
-  assert.equal(versionIn(dir), '0.0.2');
+  assert.equal(versionOf(dir), '0.0.2');
   const lock = JSON.parse(read(dir, 'package-lock.json'));
   assert.equal(lock.version, '0.0.2');
   assert.equal(lock.packages[''].version, '0.0.2');
@@ -67,13 +67,13 @@ test('AC-QA-VERSION-01: normal bump', () => {
 test('AC-QA-VERSION-02: patch rollover', () => {
   const dir = tree('0.0.999');
   assert.equal(run(dir, 'bump', '--date=2026-10-01').code, 0);
-  assert.equal(versionIn(dir), '0.1.0');
+  assert.equal(versionOf(dir), '0.1.0');
 });
 
 test('AC-QA-VERSION-03: minor rollover', () => {
   const dir = tree('0.999.999');
   assert.equal(run(dir, 'bump', '--date=2026-10-01').code, 0);
-  assert.equal(versionIn(dir), '1.0.0');
+  assert.equal(versionOf(dir), '1.0.0');
 });
 
 test('AC-QA-VERSION-04: skipping a version is rejected', () => {
