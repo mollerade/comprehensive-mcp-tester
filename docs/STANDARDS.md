@@ -86,12 +86,14 @@ The standard is applied in six phases, one per release. This page records where 
   - ESLint at zero findings, with the complexity ceilings (cyclomatic 10, cognitive 15, 60 lines per function, 500 per file) enforced and a baseline of existing offenders that may only shrink ([ADR 0007](adr/0007-lint-gate.md)).
   - Every suite, end-to-end with Chromium included, on Node 22 and 24.
   - The acceptance-criteria traceability check.
-  - The build self-checks.
+  - The e2e suite fails rather than skips in CI, a JUnit report per Node version is uploaded, and failing tests are listed by acceptance criterion in the job summary (#6).
+  - The version check: every version reference agrees, and a release is exactly +0.0.1 (#7).
+  - The build self-checks, and a reproducible-build check.
+  - CodeQL (security-extended queries) on every change.
   - Markdown lint and spelling.
 - **Missing:**
   - A coverage threshold.
   - An OS matrix.
-  - JUnit reports (#6).
 - **Not applicable:** fuzzing corpora and an API-breakage check. The one input parser, the SSE and JSON handling, could gain fuzz tests later.
 
 ### 7. Supply chain and security
@@ -100,25 +102,21 @@ The standard is applied in six phases, one per release. This page records where 
   - `SECURITY.md` with GitHub private vulnerability reporting.
   - Release files with a CycloneDX SBOM and Sigstore-signed build provenance, verifiable with `gh attestation verify`.
   - The manual's Python tooling pinned by hash.
-  - Dependabot for npm and GitHub Actions.
+  - Dependabot for npm, GitHub Actions, the manual's Python packages and `tools/lint`, with a 7-day cooldown.
   - The lockfile committed and `npm ci` in CI.
   - No runtime dependencies.
+  - Every action pinned by commit SHA, enforced by a test; workflows default to read-only tokens.
+  - `npm audit` and `npm audit signatures` in CI, and dependency review on pull requests.
+  - OpenSSF Scorecard weekly on `main`, reporting to code scanning.
 - **Missing:**
-  - Actions pinned by commit SHA; the new docs-lint job's actions are pinned, the older ones are not.
-  - An OpenSSF Scorecard run.
-  - `npm audit` in CI.
+  - A Scorecard of 9 or more: branch protection and review by someone other than the author are repository settings.
   - REUSE / SPDX headers per file (#56).
 - **Not applicable:** `KEYS.asc`. Tags are signed with the maintainer's SSH key, which GitHub verifies against the key registered on their account, and release files carry Sigstore attestations instead of key signatures.
 
 ### 8. Community and governance
 
-- **Has:** `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` (with the acceptance-criteria convention), issue and pull request templates, `.editorconfig`, and a docs-lint CI job.
-- **Missing:**
-  - `GOVERNANCE.md` and `SUPPORT.md`.
-  - `CITATION.cff`.
-  - A pre-commit config.
-  - A devcontainer.
-  - An `AGENTS.md`; the agent rules live in `CLAUDE.md` today (#56).
+- **Has:** `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` (with the acceptance-criteria convention), `GOVERNANCE.md`, `SUPPORT.md`, `CITATION.cff`, `AGENTS.md` (which `CLAUDE.md` imports), issue and pull request templates, `.editorconfig`, a pinned pre-commit configuration, a devcontainer checked in CI, and a docs-lint CI job.
+- **Missing:** nothing a single repository can add; a CI-checked table across a repository family does not apply.
 
 ## Phases
 
