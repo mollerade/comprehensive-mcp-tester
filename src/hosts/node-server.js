@@ -38,6 +38,11 @@ function send(res, status, headers, body) {
   }, headers));
   res.end(body);
 }
+/** The detail stays in the terminal, not in the response */
+function sendInternalError(res, err) {
+  console.error(err);
+  sendJson(res, 500, { error: 'Internal error' });
+}
 function sendJson(res, status, obj) {
   send(res, status, { 'Content-Type': 'application/json' }, JSON.stringify(obj));
 }
@@ -136,7 +141,7 @@ export function createServer(opts = {}) {
 
       return send(res, 404, { 'Content-Type': 'text/plain' }, 'Not found');
     } catch (err) {
-      return sendJson(res, 500, { error: 'Internal error', detail: String(err && err.message || err) });
+      return sendInternalError(res, err);
     }
   });
 }

@@ -101,6 +101,23 @@ describe('computeStats edge cases', () => {
   });
 });
 
+describe('OAuth callback query', () => {
+  test('a query parameter named __proto__ or constructor is just a key', () => {
+    const q = c.parseQuery('?__proto__=x&constructor=y&state=s');
+    assert.equal(Object.getPrototypeOf(q), null);
+    assert.deepEqual(Object.keys(q), ['__proto__', 'constructor', 'state']);
+    assert.equal(q.state, 's');
+  });
+});
+
+describe('diagnostics report', () => {
+  test('a Markdown table cell escapes backslashes before pipes', () => {
+    assert.equal(c.mdCell('a|b'), 'a\\|b');
+    assert.equal(c.mdCell('ends with \\|'), 'ends with \\\\\\|', 'a trailing backslash cannot unescape the pipe');
+    assert.equal(c.mdCell(404), '404');
+  });
+});
+
 describe('fmtMs', () => {
   test('null → em dash', () => assert.equal(c.fmtMs(null), '—'));
   test('850 → 850ms', () => assert.equal(c.fmtMs(850), '850ms'));

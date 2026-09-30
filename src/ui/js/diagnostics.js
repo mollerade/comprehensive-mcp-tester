@@ -361,6 +361,11 @@ function showProbeTip(ev, i) {
 function hideTip() { document.getElementById('vizTooltip').hidden = true; }
 
 /* ── Export ── */
+/** Text safe inside a Markdown table cell: backslashes first, then pipes */
+function mdCell(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+}
+
 function exportReport() {
   var s = computeStats();
   if (!s.total) { showToast('No samples to export yet', 'err'); return; }
@@ -400,7 +405,7 @@ function exportReport() {
            ' | ' + (p.overhead != null ? Math.round(p.overhead) : '-') +
            ' | ' + (p.colo || '-') +
            ' | ' + probeLabel(probeClass(p)) +
-           ' | ' + (p.errorDetail ? String(p.errorDetail).replace(/\|/g, '\\|') : '') + ' |');
+           ' | ' + (p.errorDetail ? mdCell(p.errorDetail) : '') + ' |');
   }
   L.push('');
   L.push('## Raw JSON');

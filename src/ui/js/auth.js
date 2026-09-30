@@ -94,7 +94,7 @@ function formEncode(obj) {
 }
 
 function parseQuery(search) {
-  var out = {}, pairs = String(search || '').replace(/^\?/, '').split('&');
+  var out = Object.create(null), pairs = String(search || '').replace(/^\?/, '').split('&');   // no prototype: __proto__ is a key
   for (var i = 0; i < pairs.length; i++) {
     if (!pairs[i]) continue;
     var eq = pairs[i].indexOf('=');
