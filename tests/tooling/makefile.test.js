@@ -6,7 +6,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, readFileSync, statSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, openSync, fstatSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,8 +47,12 @@ test('a staged install puts the command and the app under DESTDIR, pointing at P
   const stage = tmp();
   make('install', 'DESTDIR=' + stage, 'PREFIX=/opt/mcp');
   const bin = join(stage, 'opt/mcp/bin/mcp-tester');
-  assert.ok(statSync(bin).mode & 0o111, 'mcp-tester is not executable');
-  assert.match(readFileSync(bin, 'utf8'), /^#!\/bin\/sh\nexec node "\/opt\/mcp\/lib\/mcp-tester\/src\/hosts\/node-server\.js" "\$@"\n$/);
+  // One open file for both checks, so the mode and the contents come from the same file
+  const fd = openSync(bin, 'r');
+  let mode, wrapper;
+  try { mode = fstatSync(fd).mode; wrapper = readFileSync(fd, 'utf8'); } finally { closeSync(fd); }
+  assert.ok(mode & 0o111, 'mcp-tester is not executable');
+  assert.match(wrapper, /^#!\/bin\/sh\nexec node "\/opt\/mcp\/lib\/mcp-tester\/src\/hosts\/node-server\.js" "\$@"\n$/);
   for (const f of ['src/hosts/node-server.js', 'src/ui/index.html', 'src/core/proxy.js', 'package.json']) {
     assert.ok(existsSync(join(stage, 'opt/mcp/lib/mcp-tester', f)), 'missing ' + f);
   }

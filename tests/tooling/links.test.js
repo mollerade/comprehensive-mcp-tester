@@ -34,6 +34,8 @@ test('headings slug the way GitHub does', () => {
   assert.equal(githubSlug('When not to use MCP Tester'), 'when-not-to-use-mcp-tester');
   assert.equal(githubSlug('Highlights ⭐️'), 'highlights-');
   assert.equal(githubSlug('CI gates, and how to run them locally'), 'ci-gates-and-how-to-run-them-locally');
+  assert.equal(githubSlug('The <code>proxy</code> contract'), 'the-proxy-contract');
+  assert.equal(githubSlug('<scr<b>ipt>alert(1)</scr</b>ipt> Heading'), 'alert1-heading', 'nested tags must not reassemble');
 });
 
 test('a missing file, a missing anchor and a missing image are reported with file and line', () => {

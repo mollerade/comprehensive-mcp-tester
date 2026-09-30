@@ -34,10 +34,16 @@ function proseLines(text) {
   });
 }
 
-/** GitHub's heading anchor: lower case, punctuation dropped, spaces to hyphens */
+/** Inline HTML tags removed until none are left, so nested fragments like <scr<b>ipt> cannot reassemble */
+function stripTags(text) {
+  let previous;
+  do { previous = text; text = text.replace(/<[^<>]*>/g, ''); } while (text !== previous);
+  return text;
+}
+
+/** GitHub's heading anchor: lower case, tags and punctuation dropped, spaces to hyphens */
 export function githubSlug(heading) {
-  return heading.trim().toLowerCase()
-    .replace(/<[^>]+>/g, '')
+  return stripTags(heading.trim().toLowerCase())
     .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/\s/g, '-');
 }
