@@ -26,13 +26,14 @@ function node(args, env) {
 }
 
 test('AC-QA-CI-01: e2e cannot silently skip in CI', () => {
-  const r = node(['--test', 'tests/e2e.test.mjs'], { CI: 'true', PW_CHROMIUM_PATH: '/nonexistent/chromium' });
+  const r = node(['--test', '--test-reporter=spec', 'tests/e2e.test.mjs'], { CI: 'true', PW_CHROMIUM_PATH: '/nonexistent/chromium' });
   assert.notEqual(r.status, 0);
   assert.match(r.stdout + r.stderr, /Chromium is required when CI=true/);
 });
 
 test('AC-QA-CI-02: local skip behaviour preserved', () => {
-  const r = node(['--test', 'tests/e2e.test.mjs'], { PW_CHROMIUM_PATH: '/nonexistent/chromium' });
+  // spec explicitly: without a terminal, Node 22 defaults to TAP ("# skipped") and Node 24 to spec
+  const r = node(['--test', '--test-reporter=spec', 'tests/e2e.test.mjs'], { PW_CHROMIUM_PATH: '/nonexistent/chromium' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Playwright\/Chromium not available/);
   assert.match(r.stdout, /ℹ skipped [1-9]/);
@@ -76,6 +77,12 @@ test("the summary reads Node's real JUnit output", () => {
   assert.match(r.stdout, /^\| AC-X-01 \| AC-X-01: a \|$/m);
   assert.match(r.stdout, /^\| AC-Y-03 \| AC-Y-03: b \\\| with a pipe \|$/m, 'a pipe in a name is escaped');
   assert.match(r.stdout, /^\| \(untagged\) \| an untagged failure \|$/m);
+});
+
+test('a backslash in a test name cannot break the summary table', async () => {
+  const { summary } = await import('../../scripts/ci-summary.mjs');
+  const xml = '<testsuites><testcase name="odd \\| name" failure="x"><failure>x</failure></testcase></testsuites>';
+  assert.match(summary(xml, 'r'), /^\| \(untagged\) \| odd \\\\\\\| name \|$/m);
 });
 
 test('AC-QA-CI-05: workflow wires every gate', () => {

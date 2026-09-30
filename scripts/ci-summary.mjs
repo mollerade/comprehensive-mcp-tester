@@ -32,7 +32,8 @@ export function failingTests(xml) {
   return out;
 }
 
-const cell = (text) => text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+/** A Markdown table cell: backslashes first, then pipes, so an escape in the input cannot unescape a pipe */
+const cell = (text) => text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 /** The Markdown summary for one report */
 export function summary(xml, label) {
