@@ -6,13 +6,15 @@ Everything needed to work on MCP Tester: setup, the layout, the test suites, and
 
 - Node.js 22 or later (see [`docs/POLICIES.md`](docs/POLICIES.md)).
 - `npm install`. Playwright is the only dependency, and only for the end-to-end tests.
+- For linting, `npm ci --prefix tools/lint` once: ESLint lives in its own package so the project's install stays Playwright only ([ADR 0007](docs/adr/0007-lint-gate.md)).
 - For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one (then only that one is tried). Without it those tests skip locally; with `CI=true` they fail, so a broken browser install cannot hide UI regressions in CI.
 
 The `Makefile` wraps the npm scripts (`make help` lists every target), so either works:
 
 ```sh
 make check              # test + trace + readme + build: everything CI's test job checks, offline
-make lint               # markdownlint and codespell
+npm run lint            # ESLint at zero findings; the complexity baseline only shrinks
+make lint               # ESLint, markdownlint and codespell
 make docs               # the user manual in build/manual-site (needs: pip install --require-hashes -r docs/manual/requirements.txt)
 npm run dev             # local server on http://127.0.0.1:8787; restarts on core/host changes, UI edits show on reload
 npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
@@ -61,6 +63,7 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 | CodeQL | Static analysis of every JavaScript file (security-extended queries) | not local |
 | Devcontainer (when it changes, and weekly) | The devcontainer builds and the full suite passes inside it | open the repository in a container |
 | Scorecard (`main`, weekly) | OpenSSF Scorecard, published to code scanning | not local |
+| Lint | ESLint at zero findings, the client ES5 and module-free, and the complexity ceilings (cyclomatic 10, cognitive 15, 60 lines per function, 500 per file) with a baseline of existing offenders that may only shrink | `npm run lint` |
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |

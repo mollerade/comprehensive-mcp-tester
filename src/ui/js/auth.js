@@ -75,7 +75,7 @@ function redact(o) {
   if (!o || typeof o !== 'object') return o;
   var out = Array.isArray(o) ? [] : {};
   for (var k in o) {
-    if (!o.hasOwnProperty(k)) continue;
+    if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
     var v = o[k];
     if (REDACT_KEYS.indexOf(k) !== -1 && typeof v === 'string') out[k] = '[redacted, ' + v.length + ' chars]';
     else out[k] = redact(v);
@@ -86,7 +86,7 @@ function redact(o) {
 function formEncode(obj) {
   var parts = [];
   for (var k in obj) {
-    if (obj.hasOwnProperty(k) && obj[k] !== undefined && obj[k] !== null && obj[k] !== '') {
+    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined && obj[k] !== null && obj[k] !== '') {
       parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(obj[k]));
     }
   }
@@ -464,10 +464,10 @@ function discoverOnly() {
    secret: it is left out, and a sign-in that needs one asks for it again on return. */
 function savePendingRedirect() {
   var p = auth.pending, pending = {};
-  for (var k in p) { if (p.hasOwnProperty(k) && k !== 'popup') pending[k] = p[k]; }
+  for (var k in p) { if (Object.prototype.hasOwnProperty.call(p, k) && k !== 'popup') pending[k] = p[k]; }
   if (p.client && p.client.client_secret) {
     var client = {};
-    for (var c in p.client) { if (p.client.hasOwnProperty(c) && c !== 'client_secret') client[c] = p.client[c]; }
+    for (var c in p.client) { if (Object.prototype.hasOwnProperty.call(p.client, c) && c !== 'client_secret') client[c] = p.client[c]; }
     pending.client = client;
     pending.secretRequired = true;
   }

@@ -67,6 +67,7 @@ nav:
       - "0004 Three-state diagnostics": docs/adr/0004-three-state-diagnostics.md
       - "0005 No bundled Mermaid": docs/adr/0005-no-bundled-mermaid.md
       - "0006 Manual with MkDocs": docs/adr/0006-manual-with-mkdocs.md
+      - "0007 Lint gate": docs/adr/0007-lint-gate.md
   - Contributing:
       - Development: DEVELOPMENT.md
       - Contributing: CONTRIBUTING.md

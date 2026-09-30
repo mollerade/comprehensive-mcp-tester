@@ -41,7 +41,7 @@ export async function handleRequest(request, allowedOriginsStr) {
     var payload;
     try {
       payload = await request.json();
-    } catch (e) {
+    } catch {
       return cfJson(400, { error: 'Invalid JSON in proxy request body' });
     }
     var result = await proxyMcp(payload, {

@@ -22,7 +22,7 @@ function loadClient() {
     location: { pathname: '/', search: '', origin: 'http://127.0.0.1:8787', protocol: 'http:', hostname: '127.0.0.1' },
     navigator: {},
     setInterval: () => 0, clearInterval() {}, setTimeout: () => 0, alert() {}, console,
-    Blob: function () {}, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+    Blob: function () {},
     fetch: () => new Promise(() => {}),
     btoa: globalThis.btoa, URL,
   };

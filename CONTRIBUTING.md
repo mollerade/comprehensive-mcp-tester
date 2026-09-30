@@ -14,7 +14,7 @@ Before you start: the project has no licence yet ([#51](https://github.com/sebas
 1. Work on a branch, one change per pull request.
 2. Keep the architecture rules in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): `src/core/` stays platform-free, hosts stay thin adapters, the UI ships as one HTML file, and client JS stays ES5-style classic scripts.
 3. No new runtime dependencies. Corporate users audit what they install; a new dev dependency needs a strong reason stated in the pull request.
-4. Add or adjust tests with every behaviour change, and run `make check` before you push (see [DEVELOPMENT.md](DEVELOPMENT.md#ci-gates-and-how-to-run-them-locally)). `pre-commit install` runs the fast checks on every commit, and the devcontainer (`.devcontainer/`) gives you a ready environment.
+4. Add or adjust tests with every behaviour change, and run `make check` and `npm run lint` before you push (see [DEVELOPMENT.md](DEVELOPMENT.md#ci-gates-and-how-to-run-them-locally)). `pre-commit install` runs the fast checks on every commit, and the devcontainer (`.devcontainer/`) gives you a ready environment.
 5. After a UI change, check the light and dark themes and a width of about 400px.
 6. Add a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) for anything a user would notice.
 

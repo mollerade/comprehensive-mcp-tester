@@ -62,16 +62,19 @@ const waitDraftRes = () => page.waitForFunction(() => { const d = window.state.d
 // so asserting on a recorded call right after waiting for `connected` races the network.
 // Poll the mock's own record for the exact (method, path) the assertion needs instead.
 // `after` skips calls recorded earlier, so a path reused across tests can't match a stale one.
+/** The newest recorded call to `method` (on `path`, if given) at index `after` or later */
+function findCall(method, path, after) {
+  const matches = (c) => c.body.method === method && (path === undefined || c.path === path);
+  return mock.calls.slice(after).reverse().find(matches);
+}
+
 async function waitForCall(method, path, { after = 0, timeoutMs = 10000 } = {}) {
   const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    for (let i = mock.calls.length - 1; i >= after; i--) {
-      const c = mock.calls[i];
-      if (c.body.method === method && (path === undefined || c.path === path)) return c;
-    }
+  for (let found = findCall(method, path, after); !found; found = findCall(method, path, after)) {
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${method}${path ? ' to ' + path : ''}`);
     await new Promise((r) => setTimeout(r, 25));
   }
+  return findCall(method, path, after);
 }
 
 test('connects through the real proxy and shows server identity', { skip }, async () => {
@@ -394,7 +397,7 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
 
 test('OAuth with pop-ups blocked and a client secret: the secret is not persisted, and is asked for again', { skip }, async () => {
   const tokensBefore = mock.oauth.tokenRequests.length;
-  await page.evaluate(() => forgetCredentials());   // the previous test signed in to /secure
+  await page.evaluate(() => window.forgetCredentials());   // the previous test signed in to /secure
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
@@ -416,7 +419,7 @@ test('OAuth with pop-ups blocked and a client secret: the secret is not persiste
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
   await page.fill('#authClientId', '');
   await page.fill('#authClientSecret', '');
-  await page.evaluate(() => { localStorage.removeItem('__secretPersisted'); window.auth.preIssuer = null; hideAuthModal(); });
+  await page.evaluate(() => { localStorage.removeItem('__secretPersisted'); window.auth.preIssuer = null; window.hideAuthModal(); });
 });
 
 test('credentials are not sent to a different server', { skip }, async () => {
