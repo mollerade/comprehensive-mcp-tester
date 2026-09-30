@@ -106,7 +106,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The review action fails outright where the repository's dependency
+      # graph is off; this skips it with a warning instead (a 404 only).
+      - name: Is the dependency graph on?
+        id: graph
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/dependency-graph.mjs
+
       - name: No new dependency with a known vulnerability
+        if: steps.graph.outputs.on == 'true'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: low

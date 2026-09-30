@@ -57,7 +57,7 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 | Test (Node 22, 24) | A staged install puts the `mcp-tester` command in place | `make DESTDIR=/tmp/stage install` |
 | Test (Node 22, 24) | No known vulnerability, and valid registry signatures | `npm audit && npm audit signatures` |
 | Test (Node 22, 24) | The build is reproducible: a rebuild from a fresh export is byte-identical | see the CI step |
-| Dependency review (pull requests) | No new dependency with a known vulnerability | not local |
+| Dependency review (pull requests) | No new dependency with a known vulnerability; skipped with a warning where the repository's dependency graph is off (`scripts/dependency-graph.mjs`) | not local |
 | CodeQL | Static analysis of every JavaScript file (security-extended queries) | not local |
 | Devcontainer (when it changes, and weekly) | The devcontainer builds and the full suite passes inside it | open the repository in a container |
 | Scorecard (`main`, weekly) | OpenSSF Scorecard, published to code scanning | not local |

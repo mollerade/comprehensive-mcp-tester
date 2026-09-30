@@ -26,6 +26,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ### Fixed
 
+- The Dependency review job failed outright on a repository whose dependency graph is switched off. It now checks first and, only when the API answers 404, skips the review with a warning annotation and a job-summary line; any other API error still fails the job.
 - Six CodeQL findings: the parsed OAuth callback kept every query parameter, `__proto__` included, and now keeps only the authorization response's (`code`, `state`, `iss`, `error`, `error_description`, `error_uri`), a backslash in an error could break the diagnostics report's Markdown table, and the local server's 500 response echoed the internal error message (now logged in the terminal instead). In the mock server, the Basic-auth pattern could backtrack, `?delay=` is clamped with an explicit comparison, and a broken scenario's error goes to the test output rather than the response.
 - The manual's CI build failed when a pinned Python package had been released minutes earlier and a PyPI mirror had not caught up; the install now retries, and Dependabot proposes updates only after a 7-day cooldown.
 - The trace, README and link checks, the build and the mock server silently exited 0 without doing anything when run from a path that goes through a symlink; a check could pass without having run ([#62](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/62)).
