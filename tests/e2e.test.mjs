@@ -477,8 +477,10 @@ test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async
 test('AC-QA-VERSION-07: built artefacts carry the version', { skip }, async () => {
   const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   const { sw, mod } = build({ write: false });
-  assert.match(sw.split('\n')[0], new RegExp('v' + version.replace(/\./g, '\\.') + '\\b'));
-  assert.match(mod.split('\n')[0], new RegExp('v' + version.replace(/\./g, '\\.') + '\\b'));
+  for (const bundle of [sw, mod]) {
+    const first = bundle.split('\n')[0];
+    assert.ok(first.includes('MCP Tester v' + version + ':'), 'first line does not name v' + version + ': ' + first);
+  }
   assert.equal((await page.textContent('#appVersion')).trim(), 'v' + version);
 });
 

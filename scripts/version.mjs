@@ -70,6 +70,9 @@ function latestTagVersion(root) {
   }
 }
 
+/** Text made safe to use literally inside a regular expression */
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const readJson = (root, f) => JSON.parse(readFileSync(join(root, f), 'utf8'));
 const writeJson = (root, f, obj) => writeFileSync(join(root, f), JSON.stringify(obj, null, 2) + '\n');
 
@@ -119,7 +122,7 @@ export function bump(root, { date = new Date().toISOString().slice(0, 10), repoU
     /(CLIENT_INFO\s*=\s*\{[^}]*version:\s*')[^']+(')/, `$1${to}$2`, 'CLIENT_INFO in src/ui/js/state.js'));
 
   const readmePath = join(root, 'README.md');
-  writeFileSync(readmePath, readFileSync(readmePath, 'utf8').replace(new RegExp(`\\bcurrently ${from.replace(/\./g, '\\.')}\\b`, 'g'), `currently ${to}`));
+  writeFileSync(readmePath, readFileSync(readmePath, 'utf8').replace(new RegExp(`\\bcurrently ${escapeRegExp(from)}\\b`, 'g'), `currently ${to}`));
 
   const changelogPath = join(root, 'CHANGELOG.md');
   const url = repoUrl || repoUrlFromGit(root);
