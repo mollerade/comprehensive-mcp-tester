@@ -106,7 +106,7 @@ test('AC-QA-CI-05: workflow wires every gate', () => {
 
 test('no script outside tests/ looks like a test file to a bare `node --test`', () => {
   // Node's default patterns (https://nodejs.org/api/test.html#running-tests-from-the-command-line)
-  const looksLikeTest = /(^|[\/])(test|test-[^\/]*|[^\/]*[.\-_]test)\.[cm]?js$/;
+  const looksLikeTest = /(^|\/)(test|test-[^/]*|[^/]*[.\-_]test)\.[cm]?js$/;
   const offenders = [];
   const walk = (dir) => {
     for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
