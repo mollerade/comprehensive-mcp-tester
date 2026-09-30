@@ -1,7 +1,10 @@
 # The user manual is built with MkDocs and the Material theme, in CI and by
-# `make docs`; nothing here is a project dependency. Regenerate the pinned
-# requirements.txt after changing this file (Dependabot also proposes updates,
-# each at least 7 days after its release):
-#   pip-compile --generate-hashes --strip-extras docs/manual/requirements.in
+# `make docs`; nothing here is a project dependency. Every pin is a release at
+# least 7 days old: a brand-new release can be missing from some PyPI caches
+# for hours, and is when a compromised release is least likely to be noticed.
+# Regenerate requirements.txt after changing this file, with a cutoff a week
+# before today (Dependabot also proposes updates, with the same cooldown):
+#   uv pip compile docs/manual/requirements.in --generate-hashes --python-version 3.12 \
+#     --exclude-newer <YYYY-MM-DD one week ago>T00:00:00Z --no-header -o docs/manual/requirements.txt
 mkdocs==1.6.1
 mkdocs-material==9.7.7
