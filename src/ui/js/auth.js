@@ -93,13 +93,13 @@ function formEncode(obj) {
   return parts.join('&');
 }
 
-function parseQuery(search) {
-  var out = Object.create(null), pairs = String(search || '').replace(/^\?/, '').split('&');   // no prototype: __proto__ is a key
+function parseQuery(search) {   // keeps only the authorization response's parameters (RFC 6749 4.1.2, RFC 9207)
+  var out = {}, keep = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
+  var pairs = String(search || '').replace(/^\?/, '').split('&');
   for (var i = 0; i < pairs.length; i++) {
-    if (!pairs[i]) continue;
     var eq = pairs[i].indexOf('=');
-    var k = eq === -1 ? pairs[i] : pairs[i].slice(0, eq), v = eq === -1 ? '' : pairs[i].slice(eq + 1);
-    out[decodeURIComponent(k.replace(/\+/g, ' '))] = decodeURIComponent(v.replace(/\+/g, ' '));
+    var k = decodeURIComponent((eq === -1 ? pairs[i] : pairs[i].slice(0, eq)).replace(/\+/g, ' '));
+    if (keep.indexOf(k) !== -1) out[k] = decodeURIComponent((eq === -1 ? '' : pairs[i].slice(eq + 1)).replace(/\+/g, ' '));
   }
   return out;
 }
