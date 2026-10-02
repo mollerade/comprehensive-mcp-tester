@@ -47,6 +47,16 @@ after(async () => {
 });
 
 const lastCall = (method) => [...mock.calls].reverse().find((c) => c.body.method === method);
+// state.connected flips before tools/list is sent, so wait for the call itself (made after `since`).
+const waitForCall = async (method, path, since, timeout = 5000) => {
+  const end = Date.now() + timeout;
+  for (;;) {
+    const c = mock.calls.slice(since).reverse().find((x) => x.body.method === method && x.path === path);
+    if (c) return c;
+    if (Date.now() > end) throw new Error('no ' + method + ' call to ' + path);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+};
 const waitDraftRes = () => page.waitForFunction(() => { const d = window.state.drafts['tool-0']; return d && d.lastRes !== undefined; });
 
 test('connects through the real proxy and shows server identity', { skip }, async () => {
@@ -280,8 +290,9 @@ test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resourc
   assert.equal(await page.inputValue('#authMode'), 'oauth');
   assert.match(await page.textContent('.auth-challenge'), /resource_metadata=/);
 
+  const since = mock.calls.length;
   await page.click('#authSignIn');
-  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  const call = await waitForCall('tools/list', '/secure', since, 10000);
 
   const reg = mock.oauth.registrations.at(-1);
   assert.equal(reg.application_type, 'native', 'a localhost tester registers as a native app');
@@ -295,8 +306,6 @@ test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resourc
   assert.equal(tr.resource, mock.base + '/secure');
   assert.ok(tr.code_verifier && tr.code_verifier.length >= 43);
 
-  const call = lastCall('tools/list');
-  assert.equal(call.path, '/secure');
   assert.match(call.headers.authorization, /^Bearer at-/);
   assert.equal((await traceStep('Issuer check (RFC 9207)')).outcome, 'ok');
   assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure');
@@ -332,8 +341,9 @@ test('client credentials, no resource_metadata hint: discovery probes the well-k
   await page.selectOption('#authMode', 'client_credentials');
   await page.fill('#authClientId', 'cc-client');
   await page.fill('#authClientSecret', 'cc-secret');
+  const since = mock.calls.length;
   await page.click('#authGetToken');
-  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  const call = await waitForCall('tools/list', '/secure-nohint', since, 10000);
   assert.equal((await traceStep('Challenge')).outcome, 'warn');
   assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure-nohint');
   const tr = mock.oauth.tokenRequests.at(-1);
@@ -341,7 +351,7 @@ test('client credentials, no resource_metadata hint: discovery probes the well-k
   assert.match(tr.authorization, /^Basic /, 'secret goes in Basic auth, as the metadata allows');
   assert.equal(tr.client_secret, undefined);
   assert.equal(tr.resource, mock.base + '/secure-nohint');
-  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  assert.match(call.headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
@@ -351,22 +361,26 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   await statusIs('Sign-in required');
   await page.evaluate(() => { window.open = () => null; });
   await page.selectOption('#authMode', 'oauth');
-  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
-  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  const since = mock.calls.length;
+  // The page is already at base + '/', so wait for the callback first, then for the return.
+  await Promise.all([page.waitForURL(/\/oauth\/callback/, { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForURL(base + '/', { timeout: 10000 });
+  await page.waitForFunction(() => window.state && window.state.connected, null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
   assert.equal(await page.evaluate(() => location.search), '', 'no code left in the address bar');
   const trace = await page.evaluate(() => window.auth.trace.map((s) => s.name + ':' + s.outcome));
   assert.ok(trace.includes('Protected resource metadata:ok'), 'trace from before the redirect survives');
   assert.ok(trace.includes('Token request:ok'));
-  assert.match(lastCall('tools/list').headers.authorization, /^Bearer at-/);
+  assert.match((await waitForCall('tools/list', '/secure', since)).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
 test('credentials are not sent to a different server', { skip }, async () => {
+  const since = mock.calls.length;
   await page.fill('#urlInput', mock.url);
   await page.click('#connectBtn');
-  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
-  assert.equal(lastCall('tools/list').headers.authorization, undefined);
+  const call = await waitForCall('tools/list', new URL(mock.url).pathname, since);
+  assert.equal(call.headers.authorization, undefined);
   await page.click('#connectBtn');
 });
 
