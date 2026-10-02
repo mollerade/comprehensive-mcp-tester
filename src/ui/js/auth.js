@@ -228,14 +228,23 @@ function discoverAuth(serverUrl) {
     var issuer = prm.doc.authorization_servers[0];
     if (prm.doc.authorization_servers.length > 1) traceStep('Authorization server', 'info', 'Several listed; using the first: ' + issuer);
     return firstUsableDoc('Authorization server metadata', asMetadataUrls(issuer), function(doc) {
-      if (doc.issuer !== issuer) return 'issuer "' + doc.issuer + '" is not "' + issuer + '", so this document must not be used (RFC 8414 \u00a73.3)';
-      if (!doc.token_endpoint) return 'No token_endpoint';
-      return null;
+      return issuerProblem(doc, issuer) || (doc.token_endpoint ? null : 'No token_endpoint');
     }).then(function(as) {
+      if (as.doc.issuer !== issuer) {
+        traceStep('Issuer check (RFC 8414)', 'warn', 'issuer "' + as.doc.issuer + '" is not "' + issuer + '". Continuing only because ' +
+                  '\u201cContinue past an issuer mismatch\u201d is on: a compliant client must stop here, so fix the server.');
+      }
       var scope = auth.scope || (ch && ch.params.scope) || (prm.doc.scopes_supported || []).join(' ');
       return { prm: prm.doc, as: as.doc, resource: prm.doc.resource || resource, scope: scope };
     });
   });
+}
+
+/* RFC 8414 \u00a73.3: metadata whose issuer differs must not be used, unless the testing switch is on */
+function issuerProblem(doc, issuer) {
+  if (doc.issuer === issuer || (auth.allowIssuerMismatch && typeof doc.issuer === 'string' && doc.issuer)) return null;
+  return 'issuer "' + doc.issuer + '" is not "' + issuer + '", so this document must not be used (RFC 8414 \u00a73.3)' +
+         (auth.allowIssuerMismatch ? '' : '. To test further anyway, turn on \u201cContinue past an issuer mismatch\u201d.');
 }
 
 /* Priority per spec: pre-registered → CIMD → DCR (deprecated) → ask the user */
@@ -312,7 +321,8 @@ function acceptToken(step, r, endpoint, extra) {
   auth.token = {
     access_token: t.access_token, token_type: t.token_type || 'Bearer',
     expires_at: t.expires_in ? Date.now() + t.expires_in * 1000 : null,
-    refresh_token: t.refresh_token || null, scope: t.scope || extra.scope || null, issuer: extra.issuer || null
+    refresh_token: t.refresh_token || null, scope: t.scope || extra.scope || null, issuer: extra.issuer || null,
+    renew: extra.renew
   };
   auth.boundTo = extra.boundTo;
   traceStep(step, 'ok', 'Access token received' + (t.expires_in ? ', expires in ' + t.expires_in + 's' : '') +
@@ -404,7 +414,8 @@ function handleAuthResponse(q) {
     grant_type: 'authorization_code', code: q.code, redirect_uri: redirectUri(),
     code_verifier: p.verifier, resource: p.resource
   }, p.client, p.authMethods).then(function(r) {
-    acceptToken('Token request', r, p.tokenEndpoint, { issuer: p.issuer, boundTo: p.boundTo, scope: p.scope });
+    acceptToken('Token request', r, p.tokenEndpoint, { issuer: p.issuer, boundTo: p.boundTo, scope: p.scope,
+      renew: { grant: 'refresh_token', endpoint: p.tokenEndpoint, client: p.client, authMethods: p.authMethods, resource: p.resource } });
     auth.busy = false;
     renderAuthModal(); renderAuthBadge();
     showToast('Signed in');
@@ -418,6 +429,8 @@ function getClientCredentialsToken() {
   readAuthForm();
   auth.mode = 'client_credentials';
   if (!auth.clientId || !auth.clientSecret) { showToast('Client credentials need a client ID and secret', 'err'); return; }
+  var cc = customCredentialSettings();
+  if (!cc) { showToast('Custom credentials need two different field names', 'err'); return; }
   auth.trace = []; auth.busy = true;
   renderAuthModal();
   var where = auth.tokenEndpoint
@@ -426,10 +439,10 @@ function getClientCredentialsToken() {
         return { tokenEndpoint: d.as.token_endpoint, methods: d.as.token_endpoint_auth_methods_supported, issuer: d.as.issuer, resource: d.resource, scope: d.scope };
       });
   where.then(function(w) {
-    return tokenRequest('Token request (client credentials)', w.tokenEndpoint,
-      { grant_type: 'client_credentials', scope: w.scope, resource: w.resource },
-      { client_id: auth.clientId, client_secret: auth.clientSecret }, w.methods).then(function(r) {
-      acceptToken('Token request (client credentials)', r, w.tokenEndpoint, { issuer: w.issuer, boundTo: canonicalResource(serverUrl), scope: w.scope });
+    var renew = { grant: 'client_credentials', endpoint: w.tokenEndpoint, client: { client_id: auth.clientId, client_secret: auth.clientSecret },
+                  authMethods: w.methods, resource: w.resource, scope: w.scope, cc: cc };
+    return clientCredentialsRequest('Token request (client credentials)', renew).then(function(r) {
+      acceptToken('Token request (client credentials)', r, w.tokenEndpoint, { issuer: w.issuer, boundTo: canonicalResource(serverUrl), scope: w.scope, renew: renew });
       auth.busy = false;
       renderAuthModal(); renderAuthBadge();
       showToast('Token received');
@@ -528,131 +541,4 @@ function finishOAuthPopup() {
     msg = 'Sign-in finished, but the MCP Tester window that started it has gone. Start again from there.';
   }
   document.body.innerHTML = '<div class="empty-state" style="padding:40px 20px">' + esc(msg) + '</div>';
-}
-
-/* ── UI ── */
-function forgetCredentials() {
-  auth.token = null; auth.bearer = ''; auth.apiKeyValue = ''; auth.clientSecret = '';
-  auth.registrations = {}; auth.preIssuer = null; auth.pending = null; auth.trace = [];
-  auth.boundTo = null;
-  renderAuthModal(); renderAuthBadge();
-  showToast('Credentials forgotten');
-}
-
-function readAuthForm() {
-  function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : null; }
-  var m = val('authMode');
-  if (m !== null) auth.mode = m;
-  var fields = { authBearer: 'bearer', authKeyName: 'apiKeyName', authKeyValue: 'apiKeyValue', authClientId: 'clientId',
-                 authClientSecret: 'clientSecret', authScope: 'scope', authTokenEndpoint: 'tokenEndpoint' };
-  for (var id in fields) { var v = val(id); if (v !== null) auth[fields[id]] = v; }
-}
-
-function applyAuth() {
-  var url = currentServerUrl();
-  if (!url && auth.mode !== 'none') { showToast('Enter a server URL first', 'err'); return; }
-  readAuthForm();
-  if (auth.mode === 'bearer' || auth.mode === 'apikey') auth.boundTo = canonicalResource(url);
-  hideAuthModal(); renderAuthBadge();
-  showToast(auth.mode === 'none' ? 'No credentials will be sent' : 'Credentials applied');
-}
-
-function openAuthModal(fromChallenge) {
-  if (fromChallenge && auth.mode === 'none') auth.mode = 'oauth';
-  document.getElementById('authModal').hidden = false;
-  renderAuthModal();
-}
-function hideAuthModal() { document.getElementById('authModal').hidden = true; }
-function onAuthModeChange() { readAuthForm(); renderAuthModal(); }
-
-function renderAuthBadge() {
-  var el = document.getElementById('authBadge');
-  if (!el) return;
-  var label = '';
-  if (auth.mode === 'bearer' && auth.bearer) label = 'Bearer';
-  else if (auth.mode === 'apikey' && auth.apiKeyValue) label = 'Key';
-  else if ((auth.mode === 'oauth' || auth.mode === 'client_credentials') && auth.token) label = 'Token';
-  else if (auth.challenge && (auth.challenge.status === 401 || auth.challenge.status === 403)) label = '!';
-  el.hidden = !label;
-  el.textContent = label;
-}
-
-function authField(label, id, value, type, placeholder) {
-  return '<label>' + label + '<input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(value || '') + '"' +
-         ' placeholder="' + esc(placeholder || '') + '" spellcheck="false" autocapitalize="none" autocomplete="off"></label>';
-}
-
-function renderAuthModal() {
-  var box = document.getElementById('authModalBody');
-  if (!box || document.getElementById('authModal').hidden) return;
-  var url = currentServerUrl(), h = '';
-  h += '<h2>Authentication</h2>';
-  h += '<div class="auth-note">For <b>' + esc(url || 'no server yet') + '</b>. Kept in memory only: reloading the page forgets it.</div>';
-  if (auth.boundTo && url && auth.boundTo !== canonicalResource(url)) {
-    h += '<div class="auth-note warn">The current credentials were set up for ' + esc(auth.boundTo) + ' and won\u2019t be sent to this server.</div>';
-  }
-  var ch = url ? challengeFor(url) : null;
-  if (ch) {
-    h += '<div class="auth-challenge"><span class="log-body-label">Last challenge</span>HTTP ' + ch.status + ' ' +
-         esc(ch.header || '(no WWW-Authenticate header)') + '</div>';
-  }
-  h += '<label>Mode<select id="authMode" onchange="onAuthModeChange()">';
-  for (var i = 0; i < AUTH_MODES.length; i++) {
-    h += '<option value="' + AUTH_MODES[i][0] + '"' + (auth.mode === AUTH_MODES[i][0] ? ' selected' : '') + '>' + AUTH_MODES[i][1] + '</option>';
-  }
-  h += '</select></label>';
-
-  var dis = auth.busy ? ' disabled' : '';
-  if (auth.mode === 'bearer') {
-    h += authField('Token', 'authBearer', auth.bearer, 'password', 'eyJhbGciOi\u2026');
-  } else if (auth.mode === 'apikey') {
-    h += authField('Header name', 'authKeyName', auth.apiKeyName, 'text', 'X-API-Key');
-    h += authField('Value', 'authKeyValue', auth.apiKeyValue, 'password', '');
-  } else if (auth.mode === 'oauth') {
-    h += '<div class="auth-note">Finds the authorization server from the MCP server\u2019s metadata, registers this tester, and signs you in with PKCE in a pop-up.</div>';
-    h += authField('Client ID <span class="auth-opt">optional: only if you registered one with the server</span>', 'authClientId', auth.clientId, 'text', '');
-    h += authField('Client secret <span class="auth-opt">optional</span>', 'authClientSecret', auth.clientSecret, 'password', '');
-    h += authField('Scopes <span class="auth-opt">optional: overrides the server\u2019s hint</span>', 'authScope', auth.scope, 'text',
-                   (ch && ch.params.scope) || '');
-    h += '<div class="auth-actions"><button class="btn btn-ghost btn-sm" onclick="discoverOnly()"' + dis + '>Discover only</button>' +
-         '<button class="btn btn-primary btn-sm" id="authSignIn" onclick="startSignIn()"' + dis + '>' + (auth.busy ? 'Working\u2026' : 'Sign in') + '</button></div>';
-  } else if (auth.mode === 'client_credentials') {
-    h += '<div class="auth-note">Machine-to-machine: exchanges a client ID and secret for a token. Leave the token endpoint empty to discover it.</div>';
-    h += authField('Client ID', 'authClientId', auth.clientId, 'text', '');
-    h += authField('Client secret', 'authClientSecret', auth.clientSecret, 'password', '');
-    h += authField('Scopes <span class="auth-opt">optional</span>', 'authScope', auth.scope, 'text', '');
-    h += authField('Token endpoint <span class="auth-opt">optional</span>', 'authTokenEndpoint', auth.tokenEndpoint, 'url', 'https://auth.example.com/token');
-    h += '<div class="auth-actions"><button class="btn btn-primary btn-sm" id="authGetToken" onclick="getClientCredentialsToken()"' + dis + '>' + (auth.busy ? 'Working\u2026' : 'Get token') + '</button></div>';
-  }
-
-  if (auth.token && (auth.mode === 'oauth' || auth.mode === 'client_credentials')) {
-    var t = auth.token, left = t.expires_at ? Math.round((t.expires_at - Date.now()) / 60000) : null;
-    h += '<div class="auth-token"><span class="log-body-label">Access token</span>' +
-         esc(t.access_token.slice(0, 6)) + '\u2026 (' + t.access_token.length + ' chars)' +
-         (t.issuer ? ' from ' + esc(t.issuer) : '') + (left !== null ? ', ' + (left > 0 ? 'expires in ' + left + ' min' : 'expired') : '') +
-         (t.scope ? '<br>Scope: ' + esc(t.scope) : '') + '</div>';
-  }
-  h += '<ol class="auth-trace" id="authTrace"></ol>';
-  h += '<div class="modal-actions">';
-  h += '<button class="btn btn-ghost" onclick="forgetCredentials()" style="margin-right:auto">Forget</button>';
-  h += '<button class="btn btn-ghost" onclick="hideAuthModal()">Close</button>';
-  if (auth.mode === 'none' || auth.mode === 'bearer' || auth.mode === 'apikey') h += '<button class="btn btn-primary" id="authApply" onclick="applyAuth()">Apply</button>';
-  h += '</div>';
-  box.innerHTML = h;
-  renderAuthTrace();
-}
-
-function renderAuthTrace() {
-  var el = document.getElementById('authTrace');
-  if (!el) return;
-  var h = '';
-  for (var i = 0; i < auth.trace.length; i++) {
-    var s = auth.trace[i];
-    h += '<li class="trace-step ' + s.outcome + '"><div class="trace-head"><span class="trace-dot"></span><b>' + esc(s.name) + '</b>' +
-         (s.status ? '<span class="http-status ' + statusClass(s.status) + '">' + s.status + '</span>' : '') + '</div>' +
-         '<div class="trace-detail">' + esc(s.detail) + '</div>' +
-         (s.url ? '<div class="trace-url">' + esc(s.url) + '</div>' : '') + '</li>';
-  }
-  el.innerHTML = h;
-  el.hidden = !auth.trace.length;
 }

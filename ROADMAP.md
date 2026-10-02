@@ -34,9 +34,11 @@ Per spec 2026-07-28, in `src/ui/js/auth.js`:
 - 401/403 challenge, then protected resource metadata (header URL, then path-inserted and root well-known), then authorization server metadata (RFC 8414 / OIDC priority order; the issuer must match), then registration, then authorization code with PKCE, the `iss` check and the token, with `resource` on both requests. Each step goes to the trace and the Log.
 - Registration priority: an entered client ID (bound to the first issuer it is used with), then CIMD (only on a public HTTPS origin, and only when the authorization server sets `client_id_metadata_document_supported`), then DCR (deprecated; `application_type` is `native` on loopback and `web` otherwise; cached per issuer), then ask the user.
 - Pop-up first. If pop-ups are blocked, the page redirects and resumes on `/oauth/callback`; both hosts serve the UI there.
-- Manual modes: bearer, API-key header, client credentials (secret via Basic auth unless the authorization server only allows `client_secret_post`).
+- Manual modes: bearer, API-key header, client credentials (secret via Basic auth unless the authorization server only allows `client_secret_post`, or under custom field names such as `profileID` / `secret`).
+- Token renewal (0.10.1): a refresh token after sign-in, or the client credentials again, before expiry and once after a 401.
+- A testing switch, off by default, to continue past an authorization server issuer mismatch with a warning (0.10.1).
 
-Not done yet, and planned under item 4's milestone: refresh-token use ([#44](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/44)) and automatic step-up on 403 `insufficient_scope` ([#45](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/45); today it is detected and shown, and you sign in again by hand). Also not done: `offline_access` and `private_key_jwt`.
+Refresh-token use ([#44](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/44)) shipped in 0.10.1. Not done yet, and planned under item 4's milestone: automatic step-up on 403 `insufficient_scope` ([#45](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/45); today it is detected and shown, and you sign in again by hand). Also not done: `offline_access` and `private_key_jwt`.
 
 ## 4. Spec compliance check (in progress)
 
@@ -66,7 +68,7 @@ Not yet implemented from 2026-07-28, and not yet scheduled: MRTR (`resultType: "
 
 ## 6. Docker image for the local server (planned)
 
-A minimal, non-root image of the Node host ([#24](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/24)), built, scanned and published multi-arch to GHCR with an SBOM and provenance ([#25](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/25)). The container binds `0.0.0.0`, so `MCP_TESTER_ALLOWED_HOSTS` matters.
+A minimal, non-root image of the Node host ([#24](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/24)), built, scanned and published multi-arch to GHCR with an SBOM and provenance ([#25](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/25)). The container binds `0.0.0.0`, so `MCP_TESTER_ALLOWED_HOSTS` matters, and the server will not start without `MCP_TESTER_TOKEN`.
 
 ## 7. Signed Mac and Windows builds (planned)
 

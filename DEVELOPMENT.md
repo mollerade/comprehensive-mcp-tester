@@ -17,7 +17,7 @@ npm run lint            # ESLint at zero findings; the complexity baseline only 
 make lint               # ESLint, markdownlint and codespell
 make docs               # the user manual in build/manual-site (needs: pip install --require-hashes -r docs/manual/requirements.txt)
 npm run dev             # local server on http://127.0.0.1:8787; restarts on core/host changes, UI edits show on reload
-npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
+npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp; start the tester with MCP_TESTER_ALLOWED_TARGETS=http://127.0.0.1:8788
 npm test                # all suites
 npm run test:trace      # acceptance-criteria traceability
 npm run check:readme    # README structure check

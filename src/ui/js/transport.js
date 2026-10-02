@@ -15,6 +15,7 @@ function proxyFetch(targetUrl, options) {
     })
   }).then(function(res) {
     return res.json().then(function(env) {
+      if (env.error && env.status === undefined) env = proxyRefusalEnvelope(env);
       var clientMs = Date.now() - clientStart;
       var d = env.diag || {};
       return {
@@ -33,6 +34,19 @@ function proxyFetch(targetUrl, options) {
       };
     });
   });
+}
+
+/* The proxy itself refused (a target outside its policy, a refused redirect, bad input):
+   no origin was reached, so there is no status. Shown as a failed call with the proxy's
+   reason and hint, never as a success or an auth challenge. */
+function proxyRefusalEnvelope(env) {
+  var reason = env.error + (env.hint ? ' ' + env.hint : '');
+  var detail = 'Proxy: ' + reason;
+  return {
+    status: null, headers: {}, error: reason,
+    body: JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: detail }, id: null }),
+    diag: { ok: false, errorType: 'proxy', errorDetail: detail, redirects: env.redirects || [] }
+  };
 }
 
 /* ── Core sender ──
@@ -202,12 +216,19 @@ function handleSendFailure(e, method, source, gen) {
   return { data: { error: { message: e.message } }, status: null, diag: null, clientMs: null, isErr: true, transportOk: false };
 }
 
+/* Headers are built at send time, so a renewed token is picked up */
+function postToServer(body) {
+  return proxyFetch(state.serverUrl, { method: 'POST', headers: requestHeaders(body), body: JSON.stringify(body) });
+}
+
 function sendBody(body, source) {
   var method = body.method || 'raw';
   var gen = state.generation;
   applyModernMeta(body);
   addLog('req', method, { body: body }, null, null, null);
-  return proxyFetch(state.serverUrl, { method: 'POST', headers: requestHeaders(body), body: JSON.stringify(body) })
+  return ensureFreshToken()
+    .then(function() { return postToServer(body); })
+    .then(function(res) { return retryAfterRenewal(res, body, method, gen); })
     .then(function(res) { return handleResponse(res, method, source, gen); })
     .catch(function(e) { return handleSendFailure(e, method, source, gen); });
 }

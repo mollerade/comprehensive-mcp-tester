@@ -38,7 +38,7 @@ const cspViolations = [];   // every Content-Security-Policy report, from the pa
 before(async () => {
   if (skip) return;
   mock = await startMockServer();
-  server = createServer({ allowedOrigins: '', allowedHosts: '' });
+  server = createServer({ allowedTargets: '127.0.0.1', allowedHosts: '', token: '' });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });

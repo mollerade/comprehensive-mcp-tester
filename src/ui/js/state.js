@@ -24,9 +24,14 @@ var auth = {
   clientId: '', clientSecret: '', scope: '', tokenEndpoint: '',
   preIssuer: null,        // issuer a pre-registered client ID was first used with
   registrations: {},      // issuer → { client_id, client_secret, how }  (spec: key by issuer)
-  token: null,            // { access_token, token_type, expires_at, refresh_token, scope, issuer }
+  token: null,            // { access_token, token_type, expires_at, refresh_token, scope, issuer, renew }
+                          //   renew: how to get the next one (refresh_token or client_credentials grant), see auth-refresh.js
   challenge: null,        // last 401/403 { status, header, params, at }
   pending: null,          // in-flight authorization request (state, PKCE verifier, expected issuer)
+  refreshing: null,       // the renewal in flight, shared by every request that needs it
+  allowIssuerMismatch: false,   // testing switch: continue past an AS metadata issuer mismatch (RFC 8414 \u00a73.3), with a warning
+  // Client credentials with non-standard field names (e.g. profileID / secret), for servers that need them
+  ccStyle: 'standard', ccIdField: 'profileID', ccSecretField: 'secret', ccBodyFormat: 'form', ccStandardParams: true,
   trace: [], busy: false
 };
 

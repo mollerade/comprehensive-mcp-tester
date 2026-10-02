@@ -6,8 +6,18 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ## [Unreleased]
 
+### Security
+
+- **The proxy reaches only allowed targets.** It accepts http and https only, and refuses loopback, private, link-local, cloud-metadata and other special-purpose addresses (IPv4 and IPv6, in every spelling the URL parser normalises, including IPv4 carried in IPv6, 6to4 and NAT64) unless their host or exact origin is listed in `MCP_TESTER_ALLOWED_TARGETS`. The local server also checks the addresses a name resolves to in the socket's own lookup, so DNS rebinding cannot slip past the check.
+- **Redirects no longer bypass the allowlist.** The proxy follows redirects itself, at most five, and checks every hop; a refused hop is a 403 and is never fetched or retried. A 303 (or a 301/302 after a POST) continues as a GET without a body, and a hop to another origin carries only protocol headers, never `Authorization`, cookies or the session.
+- **The local server will not listen beyond loopback without `MCP_TESTER_TOKEN`** (32 or more characters). With a token, every request needs it: the printed access link sets an HttpOnly, SameSite=Lax cookie holding an HMAC of the token, and scripts send `Authorization: Bearer`.
+
 ### Added
 
+- **Token renewal.** A token that expires within a minute is renewed before the next request, with the refresh token after an OAuth sign-in (RFC 6749 §6, with the `resource` indicator) or with the client credentials again; a 401 to the current token renews it once and resends. A renewal that fails is shown and not retried ([#44](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/44)).
+- **Client credentials under custom field names**, for token endpoints that want, for example, `profileID` and `secret`: a form or JSON body, with or without `grant_type`, `scope` and `resource`. The custom secret field is redacted from the Log.
+- **Continue past an issuer mismatch**, an off-by-default testing switch for authorization servers whose metadata `issuer` does not match (RFC 8414 §3.3): discovery carries on with a warning; the authorization response's `iss` is still checked.
+- Mock server: refresh tokens with rotation, `oauth.expireAccessTokens()`, and the `custom-credentials` and `as-issuer-mismatch` scenarios.
 - `npm run test:ci`: every suite with a JUnit report per Node version; CI uploads the reports and lists failing tests by acceptance criterion in the job summary. The e2e suite fails instead of skipping when Chromium is missing and `CI=true`, and every CI job has a timeout of 15 minutes or less ([#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6)).
 - A lint gate: ESLint in CI at zero findings, the client held to ES5 classic scripts, and the complexity ceilings enforced with a baseline of existing offenders that may only shrink. ESLint installs from `tools/lint`, so the project's own install stays Playwright only ([#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43)).
 - A Content-Security-Policy on the page from both hosts: requests only to its own origin, no framing, no rebasing or posting forms elsewhere ([#41](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/41)).
@@ -23,10 +33,14 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ### Changed
 
+- **The Cloudflare Worker is closed by default.** It refuses every target until `MCP_TESTER_ALLOWED_TARGETS` is set (`*` for any public host); before, an unset allowlist made a fresh deployment an open fetch relay. **Set the variable before redeploying.** `ALLOWED_ORIGINS` still works as the older name, and now also accepts exact origins.
+- On the local server, a loopback or private target, such as the mock server, must now be listed: `MCP_TESTER_ALLOWED_TARGETS=http://127.0.0.1:8788 npm start`.
 - **Node.js 22 or later is now required** (was 20). Node 20 reached end of life on 2026-04-30; CI now tests Node 22 and 24 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)).
 - README restructured into the standard layout; the roadmap moved to `ROADMAP.md`.
 
 ### Fixed
+
+- A refusal from the proxy itself (a target outside its allowlist) was shown as a successful, empty response. It is now a failed call that carries the proxy's reason and hint, and is never mistaken for a sign-in challenge.
 
 - The Dependency review job failed outright on a repository whose dependency graph is switched off. It now checks first and, only when the API answers 404, skips the review with a warning annotation and a job-summary line; any other API error still fails the job.
 - Six CodeQL findings: the parsed OAuth callback kept every query parameter, `__proto__` included, and now keeps only the authorization response's (`code`, `state`, `iss`, `error`, `error_description`, `error_uri`), a backslash in an error could break the diagnostics report's Markdown table, and the local server's 500 response echoed the internal error message (now logged in the terminal instead). In the mock server, the Basic-auth pattern could backtrack, `?delay=` is clamped with an explicit comparison, and a broken scenario's error goes to the test output rather than the response.

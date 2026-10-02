@@ -40,4 +40,7 @@ export const VIOLATIONS = [
   { name: 'as-no-s256', protocol: 'legacy', auth: { hint: true, issuerPath: '/as-no-s256', pkceMethods: ['plain'] },
     description: 'Behind an authorization server whose metadata does not offer PKCE S256',
     handler: (ctx) => serveLegacy(ctx) },
+  { name: 'as-issuer-mismatch', protocol: 'legacy', auth: { hint: true, issuerPath: '/as-issuer-mismatch', issuerMismatch: true },
+    description: 'Behind an authorization server whose metadata issuer has a trailing slash the resource metadata does not (RFC 8414 \u00a73.3)',
+    handler: (ctx) => serveLegacy(ctx) },
 ];

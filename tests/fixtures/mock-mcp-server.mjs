@@ -38,8 +38,14 @@
  *   /.well-known/oauth-authorization-server/<p>    per-scenario issuers (e.g. as-no-s256)
  *   /register    dynamic client registration (records application_type)
  *   /authorize   auto-approves; requires PKCE S256 and a resource parameter; 302 with code, state, iss
- *   /token       authorization_code (checks PKCE, redirect_uri, resource) and client_credentials
- * Pre-registered clients: "pre-client" (public) and "cc-client" / "cc-secret" (confidential).
+ *   /token       authorization_code (checks PKCE, redirect_uri, resource; issues a refresh token),
+ *                refresh_token (rotates it) and client_credentials
+ *   /token-custom  client credentials under non-standard names, like some bank gateways:
+ *                profileID + secret, as JSON or a form (scenario custom-credentials)
+ * Pre-registered clients: "pre-client" (public), "cc-client" / "cc-secret" (confidential),
+ * and profile "bank-profile" / "bank-secret" for /token-custom.
+ * mock.oauth.expireAccessTokens() makes every access token fail with 401 invalid_token,
+ * as an expired one does; refresh tokens stay valid.
  *
  * Any request may add ?delay=<ms> (capped at 30s) to arrive late.
  */
@@ -56,12 +62,16 @@ const AS_PREFIX = '/.well-known/oauth-authorization-server';
 const MAX_DELAY_MS = 30000;
 const FALLBACK = SCENARIOS.find((s) => s.name === 'mcp');   // any other path behaves like /mcp
 
-function asMetadata(base, issuerPath = '', pkceMethods = ['S256']) {
+/** The issuer an AS's metadata claims: its URL, or (issuerMismatch) the URL plus a trailing slash, a real-world bug */
+const claimedIssuer = (base, issuerPath, auth) => base + issuerPath + (auth && auth.issuerMismatch ? '/' : '');
+
+function asMetadata(base, issuerPath = '', auth = null) {
   return {
-    issuer: base + issuerPath, authorization_endpoint: base + '/authorize', token_endpoint: base + '/token',
+    issuer: claimedIssuer(base, issuerPath, auth), authorization_endpoint: base + '/authorize',
+    token_endpoint: base + ((auth && auth.tokenPath) || '/token'),
     registration_endpoint: base + '/register', response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'],
-    code_challenge_methods_supported: pkceMethods, token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'],
+    code_challenge_methods_supported: (auth && auth.pkceMethods) || ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'],
     authorization_response_iss_parameter_supported: true, scopes_supported: ['mcp:read', 'mcp:write'],
   };
 }
@@ -81,7 +91,7 @@ function serveAsMetadata(res, base, issuerPath) {
   if (!issuerPath) return reply(res, 200, asMetadata(base));
   const s = scenarioForIssuerPath(issuerPath);
   if (!s) return reply(res, 404, { error: 'not_found' });
-  reply(res, 200, asMetadata(base, issuerPath, s.auth.pkceMethods));
+  reply(res, 200, asMetadata(base, issuerPath, s.auth));
 }
 
 function serveRegister(res, oauth, raw) {
@@ -110,7 +120,7 @@ function issuerFor(base, resource) {
   let auth = null;
   try { auth = authOfPath(new URL(resource).pathname); } catch { /* not a URL */ }
   if (auth && auth.mixup) return 'https://evil.example';
-  return base + ((auth && auth.issuerPath) || '');
+  return claimedIssuer(base, (auth && auth.issuerPath) || '', auth);
 }
 
 function serveAuthorize(res, oauth, base, url) {
@@ -139,21 +149,50 @@ function codeGrantRefusal(c, clientId, f) {
   return null;
 }
 
+/** An access token (and, for user grants, a rotating refresh token) for this resource */
+function issueToken(res, oauth, grant) {
+  const token = 'at-' + randomUUID();
+  oauth.tokens.set(token, { resource: grant.resource, scope: grant.scope });
+  const body = { access_token: token, token_type: 'Bearer', expires_in: 3600, scope: grant.scope };
+  if (grant.refresh) {
+    body.refresh_token = 'rt-' + randomUUID();
+    oauth.refreshTokens.set(body.refresh_token, { clientId: grant.clientId, resource: grant.resource, scope: grant.scope });
+  }
+  reply(res, 200, body);
+}
+
+/** RFC 6749 §6, with rotation: the old refresh token is spent */
+function refreshGrant(res, oauth, clientId, f) {
+  const rt = oauth.refreshTokens.get(f.refresh_token);
+  oauth.refreshTokens.delete(f.refresh_token);
+  if (!rt || rt.clientId !== clientId) return reply(res, 400, { error: 'invalid_grant', error_description: 'Unknown, spent or foreign refresh token' });
+  if (f.resource && f.resource !== rt.resource) return reply(res, 400, { error: 'invalid_target', error_description: 'resource does not match the original grant' });
+  issueToken(res, oauth, { resource: rt.resource, scope: rt.scope, refresh: true, clientId });
+}
+
+/** Non-standard client credentials: profileID + secret, in JSON or a form; anything else is invalid_client */
+function serveCustomToken(req, res, oauth, raw, base) {
+  const json = String(req.headers['content-type'] || '').includes('application/json');
+  let f = {};
+  try { f = json ? JSON.parse(raw) : Object.fromEntries(new URLSearchParams(raw)); } catch { /* empty */ }
+  oauth.tokenRequests.push({ ...f, contentType: req.headers['content-type'] || null, authorization: req.headers.authorization || null, path: '/token-custom' });
+  if (f.profileID !== 'bank-profile' || f.secret !== 'bank-secret') return reply(res, 401, { error: 'invalid_client', error_description: 'profileID and secret are required' });
+  issueToken(res, oauth, { resource: f.resource || base + '/scenario/custom-credentials/mcp', scope: f.scope });
+}
+
 function serveToken(req, res, oauth, raw) {
   const f = Object.fromEntries(new URLSearchParams(raw));
   oauth.tokenRequests.push({ ...f, authorization: req.headers.authorization || null });
   const [clientId, secret] = clientOf(req, f);
-  const issue = (resource, scope) => {
-    const token = 'at-' + randomUUID();
-    oauth.tokens.set(token, { resource, scope });
-    reply(res, 200, { access_token: token, token_type: 'Bearer', expires_in: 3600, scope });
-  };
+  const issue = (resource, scope) => issueToken(res, oauth, { resource, scope });
   if (f.grant_type === 'authorization_code') {
     const c = oauth.codes.get(f.code);
     oauth.codes.delete(f.code);
     const refusal = codeGrantRefusal(c, clientId, f);
-    return refusal ? reply(res, 400, { error: 'invalid_grant', error_description: refusal }) : issue(c.resource, c.scope);
+    return refusal ? reply(res, 400, { error: 'invalid_grant', error_description: refusal })
+      : issueToken(res, oauth, { resource: c.resource, scope: c.scope, refresh: true, clientId });
   }
+  if (f.grant_type === 'refresh_token') return refreshGrant(res, oauth, clientId, f);
   if (f.grant_type === 'client_credentials') {
     const cl = oauth.clients.get(clientId);
     if (!cl || !cl.secret || cl.secret !== secret) return reply(res, 401, { error: 'invalid_client' });
@@ -162,14 +201,20 @@ function serveToken(req, res, oauth, raw) {
   reply(res, 400, { error: 'unsupported_grant_type' });
 }
 
+const OAUTH_POSTS = {
+  '/register': (req, res, oauth, raw) => serveRegister(res, oauth, raw),
+  '/token': (req, res, oauth, raw) => serveToken(req, res, oauth, raw),
+  '/token-custom': serveCustomToken,
+};
+
 /** The authorization server's routes; returns true when it answered */
 function handleOAuth(req, res, oauth, path, base, raw) {
   if (path.startsWith(PRM_PREFIX)) { serveResourceMetadata(res, base, path.slice(PRM_PREFIX.length)); return true; }
   if (path === AS_PREFIX || path.startsWith(AS_PREFIX + '/')) { serveAsMetadata(res, base, path.slice(AS_PREFIX.length)); return true; }
-  if (path === '/register' && req.method === 'POST') { serveRegister(res, oauth, raw); return true; }
   if (path === '/authorize') { serveAuthorize(res, oauth, base, new URL(req.url, base)); return true; }
-  if (path === '/token' && req.method === 'POST') { serveToken(req, res, oauth, raw); return true; }
-  return false;
+  const post = req.method === 'POST' && OAUTH_POSTS[path];
+  if (post) post(req, res, oauth, raw, base);
+  return !!post;
 }
 
 /** 401 unless the request carries a token issued for exactly this resource */
@@ -232,10 +277,12 @@ export function startMockServer(port = 0, host = '127.0.0.1') {
     calls: [],   // every JSON-RPC body received, for assertions
     oauth: {
       clients: new Map([['pre-client', {}], ['cc-client', { secret: 'cc-secret' }]]),
-      codes: new Map(), tokens: new Map(),
+      codes: new Map(), tokens: new Map(), refreshTokens: new Map(),
       registrations: [], authorizeRequests: [], tokenRequests: [],   // for assertions
     },
   };
+
+  state.oauth.expireAccessTokens = () => state.oauth.tokens.clear();
 
   const server = http.createServer((req, res) => {
     const chunks = [];
