@@ -44,13 +44,18 @@ export const LEGACY_VERSION = '2025-11-25';
 export const META = 'io.modelcontextprotocol/';
 export const SERVER_INFO = { name: 'mock-mcp', version: '1.0.0' };
 
+/** Longest wait the mock honours, so a request cannot park a timer for hours */
+export const MAX_SLEEP_MS = 30000;
+
 export function reply(res, status, obj, extraHeaders) {
-  res.writeHead(status, Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {}));
+  // JSON, never HTML: say so before the body, whatever text ends up in a message
+  res.setHeader('Content-Type', 'application/json');
+  res.writeHead(status, { 'Content-Type': 'application/json', ...(extraHeaders || {}) });
   res.end(obj === undefined ? '' : JSON.stringify(obj));
 }
 export const rpcErr = (id, code, message, data) => ({ jsonrpc: '2.0', error: data ? { code, message, data } : { code, message }, id: id ?? null });
 export const rpcOk = (id, result) => ({ jsonrpc: '2.0', id, result });
-export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms) => new Promise((r) => setTimeout(r, Math.min(Math.max(0, Number(ms) || 0), MAX_SLEEP_MS)));
 
 /** tools/call, resources/read, prompts/get: same answers in both eras */
 function answer(body, tools) {

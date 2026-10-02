@@ -56,7 +56,14 @@
 
 Not applicable: MCP Tester is an application, not a library, and it is not published to npm (`package.json` is `"private": true`). Run it from a checkout or deploy it as a Cloudflare Worker.
 
-**On Cloudflare, no tools needed.** Take `dist/worker.js` from a build (or from the `mcp-tester-dist` CI artifact) and follow the instructions at the top of that file: create a "Hello World" Worker, replace all of its code with the file, and deploy.
+**On Cloudflare, no tools needed.** Take `worker.js` from a [release](https://github.com/sebastienrousseau/comprehensive-mcp-tester/releases) (or `dist/worker.js` from a build) and follow the instructions at the top of that file: create a "Hello World" Worker, replace all of its code with the file, and deploy.
+
+Every release file comes with a SHA-256 checksum and signed build provenance. To check a download before deploying it:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify worker.js --repo sebastienrousseau/comprehensive-mcp-tester
+```
 
 **On Cloudflare with Wrangler**
 
@@ -267,7 +274,7 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
 ## Stability guarantees
 
-MCP Tester is pre-1.0 (currently 0.10.0). Every release increments the version by exactly 0.0.1 (0.10.0, then 0.10.1, 0.10.2, ...); any release may change the UI.
+MCP Tester is pre-1.0 (currently 0.0.1). Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 (0.0.1, 0.0.2, ...); any release may change the UI. The 0.8.0 to 0.10.0 mentioned elsewhere were pre-release numbers, never tagged or released.
 
 **What counts as breaking.** A change is breaking when it changes what someone outside the UI relies on, even if no code signature moves:
 

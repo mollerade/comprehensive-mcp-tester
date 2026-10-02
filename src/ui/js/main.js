@@ -1,4 +1,5 @@
 /* ── Init ── */
+document.getElementById('appVersion').textContent = 'v' + CLIENT_INFO.version;
 if (location.pathname === '/oauth/callback' && !isRedirectCallback()) {
   finishOAuthPopup();
 } else {

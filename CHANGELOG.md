@@ -2,9 +2,11 @@
 
 All notable changes to MCP Tester are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project is pre-1.0, so any release may change behaviour (see [Stability guarantees](README.md#stability-guarantees)).
 
-Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits that set each version.
+Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 ([policy](docs/POLICIES.md#versioning)). The 0.8.0 to 0.10.0 entries below record the history before releases started: those numbers were set in the files but never tagged or released, and their dates are those of the commits that set them.
 
 ## [Unreleased]
+
+## [0.0.1] - 2026-10-02
 
 ### Licence
 
@@ -27,9 +29,11 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 - Mock server: refresh tokens with rotation, `oauth.expireAccessTokens()`, and the `custom-credentials` and `as-issuer-mismatch` scenarios.
 - `npm run test:ci`: every suite with a JUnit report per Node version; CI uploads the reports and lists failing tests by acceptance criterion in the job summary. The e2e suite fails instead of skipping when Chromium is missing and `CI=true`, and every CI job has a timeout of 15 minutes or less ([#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6)).
 - A lint gate: ESLint in CI at zero findings, the client held to ES5 classic scripts, and the complexity ceilings enforced with a baseline of existing offenders that may only shrink. ESLint installs from `tools/lint`, so the project's own install stays Playwright only ([#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43)).
+- `npm run version:bump` and `npm run version:check`: the next version (exactly +0.0.1) set everywhere at once, the changelog's Unreleased section dated, and CI rejecting any other version. The UI header and the first line of the built Worker show the version ([#7](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/7)).
 - A Content-Security-Policy on the page from both hosts: requests only to its own origin, no framing, no rebasing or posting forms elsewhere ([#41](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/41)).
 - CodeQL, OpenSSF Scorecard, dependency review, `npm audit` and registry-signature checks in CI, with every GitHub Action pinned by commit; a devcontainer checked in CI to boot to a green test suite; a pre-commit configuration; `AGENTS.md` (which `CLAUDE.md` now imports), `GOVERNANCE.md`, `SUPPORT.md` and `CITATION.cff`. ([#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56)).
 - `docs/packaging.md` for anyone repackaging the tool, and a CI check that the build is reproducible: the same commit gives byte-identical files ([#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55)).
+- A release pipeline: each signed `v*` tag publishes a GitHub release with the built files, a CycloneDX SBOM, `SHA256SUMS`, and Sigstore-signed build provenance, after a preflight on the tag and every version reference, and reads the published release back ([#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54)).
 - A user manual built from the repository's Markdown and published to GitHub Pages on each release, architecture decision records in `docs/adr/`, and a CI check that every relative link and anchor resolves ([#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53)).
 - A `Makefile`: `make check` runs the offline CI gate, and `make install` / `make uninstall` install the local server as an `mcp-tester` command, honouring `PREFIX` and `DESTDIR` ([#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52)).
 - Acceptance-criteria traceability check, `npm run test:trace`: every criterion in `docs/acceptance/` needs a test titled with its ID, and CI runs it ([#4](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/4)).
@@ -42,6 +46,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 - **The Cloudflare Worker is closed by default.** It refuses every target until `MCP_TESTER_ALLOWED_TARGETS` is set (`*` for any public host); before, an unset allowlist made a fresh deployment an open fetch relay. **Set the variable before redeploying.** `ALLOWED_ORIGINS` still works as the older name, and now also accepts exact origins.
 - On the local server, a loopback or private target, such as the mock server, must now be listed: `MCP_TESTER_ALLOWED_TARGETS=http://127.0.0.1:8788 npm start`.
+- **Version numbering restarts at 0.0.1.** Nothing was ever released under 0.8.0 to 0.10.0, so the first release is 0.0.1 under the versioning policy; until then the version reads 0.0.0.
 - **Node.js 22 or later is now required** (was 20). Node 20 reached end of life on 2026-04-30; CI now tests Node 22 and 24 ([#58](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/58)).
 - README restructured into the standard layout; the roadmap moved to `ROADMAP.md`.
 
@@ -56,7 +61,7 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 - With pop-ups blocked, sign-in saved a client secret, if one was entered, in `sessionStorage` across the redirect. It is no longer saved; a sign-in that needs it asks for it again on return ([#42](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/42)).
 - The request Log kept every entry, so a health monitor left running grew memory and re-render cost without bound; it now keeps the newest 1000 ([#40](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/40)).
 - The local server silently exited without starting when run from a path that goes through a symlink (for example macOS's `/tmp` or a Homebrew prefix), and with `PORT=0` it announced port 0 instead of the port it bound.
-- `package-lock.json` recorded the project as version 0.8.0; it now matches `package.json` (0.10.0).
+- `package-lock.json` recorded the project as version 0.8.0 while `package.json` said 0.10.0; the two now always agree, and CI checks it.
 - A late response from a previous connection no longer overwrites the current server's tools, session, auth challenge or diagnostics, and a disconnect drops in-flight work ([#39](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/39)).
 - The OAuth flow refuses a non-https authorization endpoint (http only on loopback), so a hostile authorization server cannot send the pop-up to a `javascript:` or `data:` URL ([#38](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/38)).
 - Untrusted MCP schema names are escaped in form field ids, closing a DOM-XSS path ([#37](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/37)).
@@ -85,7 +90,8 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 - First release: one codebase served as a Cloudflare Worker and a local Node server, with the MCP proxy core, the single-file UI, diagnostics and the health monitor.
 
-[Unreleased]: https://github.com/mollerade/comprehensive-mcp-tester/compare/73359a7...HEAD
+[Unreleased]: https://github.com/mollerade/comprehensive-mcp-tester/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/mollerade/comprehensive-mcp-tester/compare/73359a7...v0.0.1
 [0.10.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/73359a7
 [0.9.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/f15ce72
 [0.8.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/5bc37f5

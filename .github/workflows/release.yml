@@ -1,0 +1,164 @@
+name: Release
+
+# Publishes a GitHub release for each signed v* tag: the dist/ files, a
+# CycloneDX SBOM, SHA256SUMS, build provenance and SBOM attestations (the
+# provenance bundle ships with the release, so it verifies offline), and notes
+# in the project's layout. Nothing is published unless the tag passes the
+# preflight, and the published release is read back and checked afterwards.
+#
+# Dry run (no tag, nothing published; everything else runs, attestations
+# included): on pull requests that touch the release machinery, and by hand
+# from the Actions tab.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/check-versions.mjs
+      - scripts/release-notes.mjs
+      - docs/releases/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: ${{ github.event_name == 'push' && 'Release' || 'Release (dry run)' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write      # create the release; unused in a dry run
+      id-token: write      # sign the attestations with Sigstore
+      attestations: write
+    env:
+      DRY_RUN: ${{ github.event_name != 'push' }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Resolve version and tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$DRY_RUN" = true ]; then TAG="v$VERSION"; else TAG="$GITHUB_REF_NAME"; fi
+          COMMIT=$(git rev-parse HEAD)
+          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*' "$COMMIT^" 2>/dev/null || true)
+          HIGHLIGHTS="docs/releases/$TAG.md"
+          if [ "$DRY_RUN" = true ] && [ ! -f "$HIGHLIGHTS" ]; then
+            HIGHLIGHTS=$(find docs/releases -name 'v*.md' | sort -V | tail -n 1)   # a dry run before the bump uses the newest notes
+          fi
+          { echo "VERSION=$VERSION"; echo "TAG=$TAG"; echo "COMMIT=$COMMIT"; echo "PREVIOUS=$PREVIOUS"; echo "HIGHLIGHTS=$HIGHLIGHTS"; } >> "$GITHUB_ENV"
+          echo "Releasing $TAG ($VERSION) from $COMMIT; previous tag: ${PREVIOUS:-none}; highlights: $HIGHLIGHTS; dry run: $DRY_RUN"
+
+      - name: Preflight — the tag is a signed, annotated release of main
+        if: env.DRY_RUN == 'false'
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$(git cat-file -t "$TAG")" = tag ] || fail "$TAG is not an annotated tag"
+          SUBJECT=$(git tag -l --format='%(contents:subject)' "$TAG")
+          [ "$SUBJECT" = "MCP Tester v$VERSION" ] || fail "tag message is '$SUBJECT', expected 'MCP Tester v$VERSION'"
+          [ "$(git rev-parse "$TAG^{commit}")" = "$COMMIT" ] || fail "$TAG does not point at the commit being built"
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$COMMIT" origin/main || fail "$TAG points at a commit that is not on main"
+          VERIFIED=$(gh api "repos/$REPO/git/tags/$(git rev-parse "$TAG")" --jq .verification.verified)
+          [ "$VERIFIED" = true ] || fail "GitHub does not verify the signature on $TAG"
+          node scripts/check-versions.mjs --tag="$TAG"
+          [ -f "$HIGHLIGHTS" ] || fail "$HIGHLIGHTS is missing: write the release highlights first"
+
+      - name: Version references agree
+        if: env.DRY_RUN == 'true'
+        run: node scripts/check-versions.mjs
+
+      - run: npm ci
+
+      - name: Build, with its self-checks
+        run: make build
+
+      - name: Release files, SBOM and checksums
+        run: |
+          mkdir -p release
+          cp dist/index.html dist/worker.js dist/worker.mjs release/
+          npm sbom --sbom-format cyclonedx --omit dev --sbom-type application > "release/mcp-tester-$VERSION.cdx.json"
+          (cd release && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Build provenance
+        # A pull request from a fork gets no OIDC token, so Sigstore cannot sign there; the dry run still builds and composes the notes.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/index.html
+            release/worker.js
+            release/worker.mjs
+            release/mcp-tester-*.cdx.json
+
+      - name: SBOM attestation
+        # A pull request from a fork gets no OIDC token, so Sigstore cannot sign there; the dry run still builds and composes the notes.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            release/index.html
+            release/worker.js
+            release/worker.mjs
+          sbom-path: release/mcp-tester-${{ env.VERSION }}.cdx.json
+
+      - name: Ship the provenance bundle with the release
+        # A pull request from a fork gets no OIDC token, so Sigstore cannot sign there; the dry run still builds and composes the notes.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        run: cp "${{ steps.provenance.outputs.bundle-path }}" "release/mcp-tester-$VERSION.provenance.sigstore.json"
+
+      - name: Release notes
+        run: |
+          ARGS=(-f "tag_name=$TAG" -f "target_commitish=$COMMIT")
+          [ -n "$PREVIOUS" ] && ARGS+=(-f "previous_tag_name=$PREVIOUS")
+          if ! gh api "repos/$REPO/releases/generate-notes" "${ARGS[@]}" --jq .body > generated.md; then
+            # generate-notes needs write access, which a pull request from a fork does not get; the dry run composes around a stand-in
+            [ "$DRY_RUN" = true ] || exit 1
+            printf '## What'"'"'s Changed\n\nGenerated by GitHub when the release is published (not available to a dry run from a fork).\n\n**Full Changelog**: https://github.com/%s/commits/%s\n' "$REPO" "$TAG" > generated.md
+          fi
+          node scripts/release-notes.mjs --highlights="$HIGHLIGHTS" --generated=generated.md --checksums=release/SHA256SUMS > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ env.TAG }}${{ env.DRY_RUN == 'true' && '-dry-run' || '' }}
+          path: |
+            release/
+            release-notes.md
+
+      - name: Publish the release
+        if: env.DRY_RUN == 'false'
+        run: gh release create "$TAG" release/* --verify-tag --title "MCP Tester $VERSION" --notes-file release-notes.md
+
+      - name: Audit the published release
+        if: env.DRY_RUN == 'false'
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          gh release download "$TAG" --repo "$REPO" --dir audit
+          (cd audit && sha256sum --check SHA256SUMS) || fail "published files do not match SHA256SUMS"
+          for f in index.html worker.js worker.mjs; do
+            gh attestation verify "audit/$f" --repo "$REPO" >/dev/null || fail "no valid provenance for $f"
+            gh attestation verify "audit/$f" --repo "$REPO" --bundle "audit/mcp-tester-$VERSION.provenance.sigstore.json" >/dev/null || fail "the shipped provenance bundle does not verify $f"
+          done
+          BODY=$(gh release view "$TAG" --repo "$REPO" --json body --jq .body)
+          for section in '## Highlights ⭐️' "## What's Changed" '## Checksums' '**Full Changelog**'; do
+            grep -qF "$section" <<< "$BODY" || fail "published notes lack $section"
+          done
+          [ "$(gh api "repos/$REPO/git/tags/$(git rev-parse "$TAG")" --jq .verification.verified)" = true ] || fail "published tag is not verified"
+          echo "Published $TAG: files, checksums, provenance, notes and tag signature verified"

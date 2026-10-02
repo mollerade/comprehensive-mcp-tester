@@ -15,9 +15,9 @@ No compatibility is claimed with any distribution's packaged Node.js.
 
 ## Versioning
 
-**History.** Releases 0.8.0, 0.9.0 and 0.10.0 each added one roadmap item; none was tagged.
+**History.** Before releases started, the version in the files went 0.8.0, 0.9.0, 0.10.0, one step per roadmap item. None of those was tagged or released, so they are pre-release numbers, and numbering restarted when the project adopted this policy.
 
-**From here, every release increments by exactly 0.0.1:** 0.10.0, then 0.10.1, 0.10.2, and so on. The next minor number is reached only by passing through 0.x.999. Work for the next release happens on a branch named `feat/v<next-version>` (for example `feat/v0.10.1`), which is the only pull request open against `main`; other branches merge into it. A release check that enforces the increment is [#7](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/7).
+**Releases start at 0.0.1, and every release increments by exactly 0.0.1:** 0.0.1, 0.0.2, and so on. 0.1.0 is reached only by passing through 0.0.999. Until the first release, the files say 0.0.0; the release commit sets the version being released. Work for the next release happens on a branch named `feat/v<next-version>` (for example `feat/v0.0.1`), which is the only pull request open against `main`; other branches merge into it. A release check that enforces the increment is [#7](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/7).
 
 **Deprecation.** A feature, configuration variable, mock scenario or `/proxy` field is deprecated before it is removed: the deprecation is announced under **Deprecated** in `CHANGELOG.md`, and the item keeps working for at least one release after that. The removal is then listed under **Removed**.
 

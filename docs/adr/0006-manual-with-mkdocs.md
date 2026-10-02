@@ -1,6 +1,6 @@
 # 0006. The user manual is built with MkDocs 1.x and Material, pinned
 
-**Status:** Accepted (0.10.1)
+**Status:** Accepted (0.0.1)
 
 ## Context
 

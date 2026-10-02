@@ -17,7 +17,7 @@ The standard is applied in six phases, one per release. This page records where 
 | 1 | Identity and README | 3 | 6 | CI-checked install snippets |
 | 2 | Documentation | 2 | 8 | External links not checked; migration guides not applicable |
 | 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
-| 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
+| 4 | Releases | 1 | 8 | First release not yet published; no native binaries (roadmap 7) |
 | 5 | Packaging and distribution | 1 | 5 | Container image [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23); the noncommercial licence limits who may redistribute |
 | 6 | CI quality gates | 5 | 8 | Coverage threshold; Halstead difficulty (no ESLint rule); fuzzing |
 | 7 | Supply chain and security | 1 | 6 | Scorecard below 9: branch protection and code review |
@@ -60,12 +60,15 @@ The standard is applied in six phases, one per release. This page records where 
 
 ### 4. Releases
 
-- **Has:** `CHANGELOG.md`, and CI uploads `dist/` on every run.
+- **Has:**
+  - `CHANGELOG.md`, and a release procedure in `DEVELOPMENT.md`.
+  - A tag-triggered release workflow with a dry run that runs on every change to the release machinery.
+  - A blocking preflight: the tag must be annotated, signed and verified, carry the message `MCP Tester vX.Y.Z`, point at `main`, and match every version reference and the changelog.
+  - `SHA256SUMS`, a CycloneDX SBOM, and Sigstore-signed build provenance and SBOM attestations for every file.
+  - Release notes in a fixed layout, and an audit that reads the published release back.
 - **Missing:**
-  - Tags: 0.8.0 to 0.10.0 were never tagged.
-  - GitHub releases.
-  - A tag-triggered pipeline with a dry run.
-  - Checksums, an SBOM and provenance (#54).
+  - A published release: 0.8.0 to 0.10.0 were never tagged or released, and 0.0.1 will be the first.
+  - Native binaries, which are roadmap item 7 (#26).
 
 ### 5. Packaging and distribution
 
@@ -83,37 +86,37 @@ The standard is applied in six phases, one per release. This page records where 
   - ESLint at zero findings, with the complexity ceilings (cyclomatic 10, cognitive 15, 60 lines per function, 500 per file) enforced and a baseline of existing offenders that may only shrink ([ADR 0007](adr/0007-lint-gate.md)).
   - Every suite, end-to-end with Chromium included, on Node 22 and 24.
   - The acceptance-criteria traceability check.
-  - The build self-checks.
+  - The e2e suite fails rather than skips in CI, a JUnit report per Node version is uploaded, and failing tests are listed by acceptance criterion in the job summary (#6).
+  - The version check: every version reference agrees, and a release is exactly +0.0.1 (#7).
+  - The build self-checks, and a reproducible-build check.
+  - CodeQL (security-extended queries) on every change.
   - Markdown lint and spelling.
 - **Missing:**
   - A coverage threshold.
   - An OS matrix.
-  - JUnit reports (#6).
 - **Not applicable:** fuzzing corpora and an API-breakage check. The one input parser, the SSE and JSON handling, could gain fuzz tests later.
 
 ### 7. Supply chain and security
 
 - **Has:**
   - `SECURITY.md` with GitHub private vulnerability reporting.
-  - Dependabot for npm and GitHub Actions.
+  - Release files with a CycloneDX SBOM and Sigstore-signed build provenance, verifiable with `gh attestation verify`.
+  - The manual's Python tooling pinned by hash.
+  - Dependabot for npm, GitHub Actions, the manual's Python packages and `tools/lint`, with a 7-day cooldown.
   - The lockfile committed and `npm ci` in CI.
   - No runtime dependencies.
+  - Every action pinned by commit SHA, enforced by a test; workflows default to read-only tokens.
+  - `npm audit` and `npm audit signatures` in CI, and dependency review on pull requests.
+  - OpenSSF Scorecard weekly on `main`, reporting to code scanning.
 - **Missing:**
-  - Actions pinned by commit SHA; the new docs-lint job's actions are pinned, the older ones are not.
-  - An OpenSSF Scorecard run.
-  - `npm audit` in CI.
+  - A Scorecard of 9 or more: branch protection and review by someone other than the author are repository settings.
   - REUSE / SPDX headers per file (#56).
-- **Not applicable yet:** signing keys (`KEYS.asc`), until releases are signed (#54).
+- **Not applicable:** `KEYS.asc`. Tags are signed with the maintainer's SSH key, which GitHub verifies against the key registered on their account, and release files carry Sigstore attestations instead of key signatures.
 
 ### 8. Community and governance
 
-- **Has:** `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` (with the acceptance-criteria convention), issue and pull request templates, `.editorconfig`, and a docs-lint CI job.
-- **Missing:**
-  - `GOVERNANCE.md` and `SUPPORT.md`.
-  - `CITATION.cff`.
-  - A pre-commit config.
-  - A devcontainer.
-  - An `AGENTS.md`; the agent rules live in `CLAUDE.md` today (#56).
+- **Has:** `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` (with the acceptance-criteria convention), `GOVERNANCE.md`, `SUPPORT.md`, `CITATION.cff`, `AGENTS.md` (which `CLAUDE.md` imports), issue and pull request templates, `.editorconfig`, a pinned pre-commit configuration, a devcontainer checked in CI, and a docs-lint CI job.
+- **Missing:** nothing a single repository can add; a CI-checked table across a repository family does not apply.
 
 ## Phases
 
@@ -122,6 +125,6 @@ The standard is applied in six phases, one per release. This page records where 
 | 1 | Normalised layout: `docs/` root, `DEVELOPMENT.md`, community files, docs-lint CI | This change | Done |
 | 2 | Makefile and install UX | [#52](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/52) | Done |
 | 3 | Rendered manual and link check | [#53](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/53) | Done |
-| 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Open |
+| 4 | Automated, signed releases | [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) | Done |
 | 5 | Packaging | [#55](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/55) | Done |
 | 6 | Polish: Scorecard, pinned actions, devcontainer, governance files | [#56](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/56) | Done |

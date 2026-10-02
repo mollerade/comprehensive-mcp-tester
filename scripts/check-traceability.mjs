@@ -40,7 +40,7 @@ export function walk(dir, pattern) {
 const posix = (p) => p.split(sep).join('/');
 const lineAt = (text, index) => text.slice(0, index).split('\n').length;
 
-/** Milestone from a path like docs/acceptance/v0.10.2/X.feature, or null. */
+/** Milestone from a path like docs/acceptance/v0.0.2/X.feature, or null. */
 export function milestoneOf(file) {
   const m = /(?:^|\/)v(\d+\.\d+\.\d+)\//.exec(posix(file));
   return m ? m[1] : null;

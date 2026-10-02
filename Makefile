@@ -17,7 +17,7 @@ NPM ?= npm
 MKDOCS ?= mkdocs
 MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md GOVERNANCE.md SUPPORT.md LICENSE.md
 
-.PHONY: all help deps build test trace readme links check lint docs dev start mock clean install uninstall
+.PHONY: all help deps build test trace readme links versions check lint docs dev start mock clean install uninstall
 
 all: build
 
@@ -27,7 +27,8 @@ help:
 	@echo "make trace      every acceptance criterion has a test"
 	@echo "make readme     README structure check"
 	@echo "make links      every relative link and anchor in the Markdown resolves"
-	@echo "make check      test + trace + readme + links + build: the offline CI gate"
+	@echo "make versions   every version reference agrees (package.json, lockfile, the UI)"
+	@echo "make check      test + trace + readme + links + versions + build: the offline CI gate"
 	@echo "make docs       the user manual in build/manual-site (needs: pip install -r docs/manual/requirements.txt)"
 	@echo "make lint       ESLint (npm ci --prefix tools/lint first), markdownlint and codespell"
 	@echo "make dev        local server that restarts on changes"
@@ -58,7 +59,10 @@ readme:
 links:
 	@node scripts/check-links.mjs
 
-check: test trace readme links build
+versions:
+	@node scripts/check-versions.mjs
+
+check: test trace readme links versions build
 
 lint: readme
 	@$(NPM) run lint
