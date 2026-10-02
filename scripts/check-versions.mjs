@@ -13,9 +13,9 @@
  * for a different version. The README's "currently X.Y.Z" is checked by
  * check-readme.mjs.
  */
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './is-main.mjs';
 
 /** Every version reference, as [where, version or null] */
 function references(root) {
@@ -40,7 +40,8 @@ export function versionProblems(root, { tag } = {}) {
   if (tag !== undefined) {
     if (tag !== 'v' + version) problems.push(`tag ${tag} does not match package.json version ${version} (expected v${version})`);
     const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8');
-    if (!new RegExp('^## \\[' + version.replace(/\./g, '\\.') + '\\]', 'm').test(changelog)) {
+    const heading = '## [' + version + ']';   // compared as text, so no character in the version is special
+    if (!changelog.split('\n').some((line) => line.startsWith(heading))) {
       problems.push(`CHANGELOG.md has no "## [${version}]" heading`);
     }
   }
@@ -60,5 +61,4 @@ function main(argv) {
   }
 }
 
-// Real paths on both sides: a symlinked checkout must not turn the check into a silent pass
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main(process.argv.slice(2));
+if (isMain(import.meta.url)) main(process.argv.slice(2));

@@ -6,6 +6,8 @@ Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 ([p
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-10-02
+
 ### Licence
 
 - **MCP Tester is now licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).** Anyone may use, change and share it for noncommercial purposes; commercial use, including use at work for a company, needs the author's permission. `package.json`, `CITATION.cff`, the README and the built files declare it, and copies carry the licence URL and its Required Notice.
@@ -87,7 +89,8 @@ Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 ([p
 
 - First release: one codebase served as a Cloudflare Worker and a local Node server, with the MCP proxy core, the single-file UI, diagnostics and the health monitor.
 
-[Unreleased]: https://github.com/mollerade/comprehensive-mcp-tester/compare/73359a7...HEAD
+[Unreleased]: https://github.com/mollerade/comprehensive-mcp-tester/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/sebastienrousseau/comprehensive-mcp-tester/compare/73359a7...v0.0.1
 [0.10.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/73359a7
 [0.9.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/f15ce72
 [0.8.0]: https://github.com/mollerade/comprehensive-mcp-tester/commit/5bc37f5

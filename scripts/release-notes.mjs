@@ -12,8 +12,8 @@
  *   **Full Changelog** last, from the generated notes
  * Only the highlights are hand-written; everything else is generated.
  */
-import { readFileSync, realpathSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { isMain } from './is-main.mjs';
 
 const FULL_CHANGELOG = /^\*\*Full Changelog\*\*:.*$/m;
 
@@ -35,8 +35,7 @@ function main(argv) {
   process.stdout.write(composeNotes({ highlights: opt('highlights'), generated: opt('generated'), checksums: opt('checksums') }));
 }
 
-// Real paths on both sides: a symlinked checkout must not turn this into a silent no-op
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+if (isMain(import.meta.url)) {
   try { main(process.argv.slice(2)); }
   catch (e) { process.stderr.write(e.message + '\n'); process.exitCode = 1; }
 }

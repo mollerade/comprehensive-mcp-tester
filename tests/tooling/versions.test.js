@@ -47,6 +47,12 @@ test('release mode needs a matching tag and a changelog heading', () => {
     ['CHANGELOG.md has no "## [1.2.3]" heading']);
 });
 
+test('the changelog heading is matched exactly, not as a pattern', () => {
+  assert.deepEqual(versionProblems(tree({ changelog: '# Changelog\n\n## [1x2x3] - 2026-01-01\n' }), { tag: 'v1.2.3' }), ['CHANGELOG.md has no "## [1.2.3]" heading'],
+    'a dot in the version must not match any character');
+  assert.deepEqual(versionProblems(tree({ changelog: '# Changelog\n\n## [1.2.3] - 2026-01-01\n' }), { tag: 'v1.2.3' }), []);
+});
+
 test('the CLI exits 1 and names every problem', () => {
   const r = spawnSync(process.execPath, [join(ROOT, 'scripts/check-versions.mjs'), '--root=' + tree({ client: '9.9.9' }), '--tag=v1.2.3'], { encoding: 'utf8' });
   assert.equal(r.status, 1);

@@ -274,7 +274,7 @@ Report vulnerabilities according to [`SECURITY.md`](SECURITY.md).
 
 ## Stability guarantees
 
-MCP Tester is pre-1.0 (currently 0.0.0: nothing released yet). Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 (0.0.1, 0.0.2, ...); any release may change the UI. The 0.8.0 to 0.10.0 mentioned elsewhere were pre-release numbers, never tagged or released.
+MCP Tester is pre-1.0 (currently 0.0.1). Releases start at 0.0.1 and each one increments the version by exactly 0.0.1 (0.0.1, 0.0.2, ...); any release may change the UI. The 0.8.0 to 0.10.0 mentioned elsewhere were pre-release numbers, never tagged or released.
 
 **What counts as breaking.** A change is breaking when it changes what someone outside the UI relies on, even if no code signature moves:
 
