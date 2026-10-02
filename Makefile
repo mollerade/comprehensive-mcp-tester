@@ -15,7 +15,7 @@ BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib/mcp-tester
 NPM ?= npm
 MKDOCS ?= mkdocs
-MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md GOVERNANCE.md SUPPORT.md
+MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md GOVERNANCE.md SUPPORT.md LICENSE.md
 
 .PHONY: all help deps build test trace readme links check lint docs dev start mock clean install uninstall
 
