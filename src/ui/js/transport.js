@@ -85,7 +85,7 @@ function collectParamHeaders(schema, value, out) {
   var props = schema && schema.properties;
   if (!props || !value || typeof value !== 'object') return;
   for (var k in props) {
-    if (!props.hasOwnProperty(k)) continue;
+    if (!Object.prototype.hasOwnProperty.call(props, k)) continue;
     var ps = props[k] || {}, v = value[k], hn = ps['x-mcp-header'];
     var primitive = typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && v % 1 === 0);
     if (hn && primitive && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(hn)) out['Mcp-Param-' + hn] = encodeHeaderValue(String(v));
@@ -117,7 +117,7 @@ function staleResult() {
 }
 
 function copyHeaders(into, from) {
-  for (var k in from) { if (from.hasOwnProperty(k)) into[k] = from[k]; }
+  for (var k in from) { if (Object.prototype.hasOwnProperty.call(from, k)) into[k] = from[k]; }
   return into;
 }
 

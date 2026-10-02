@@ -131,7 +131,7 @@ export function createServer(opts = {}) {
         }
         let payload;
         try { payload = JSON.parse(raw); }
-        catch (e) { return sendJson(res, 400, { error: 'Invalid JSON in proxy request body' }); }
+        catch { return sendJson(res, 400, { error: 'Invalid JSON in proxy request body' }); }
         const result = await proxyMcp(payload, { fetch: doFetch, allowedOrigins, colo: 'local' });
         return sendJson(res, result.status, result.json);
       }

@@ -15,7 +15,7 @@ BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib/mcp-tester
 NPM ?= npm
 MKDOCS ?= mkdocs
-MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md
+MANUAL_PAGES = README.md ROADMAP.md CHANGELOG.md DEVELOPMENT.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md GOVERNANCE.md SUPPORT.md
 
 .PHONY: all help deps build test trace readme links check lint docs dev start mock clean install uninstall
 
@@ -29,7 +29,7 @@ help:
 	@echo "make links      every relative link and anchor in the Markdown resolves"
 	@echo "make check      test + trace + readme + links + build: the offline CI gate"
 	@echo "make docs       the user manual in build/manual-site (needs: pip install -r docs/manual/requirements.txt)"
-	@echo "make lint       markdownlint and codespell (fetches markdownlint-cli2 with npx)"
+	@echo "make lint       ESLint (npm ci --prefix tools/lint first), markdownlint and codespell"
 	@echo "make dev        local server that restarts on changes"
 	@echo "make start      local server on http://127.0.0.1:8787"
 	@echo "make mock       mock MCP server on http://127.0.0.1:8788/mcp"
@@ -61,6 +61,7 @@ links:
 check: test trace readme links build
 
 lint: readme
+	@$(NPM) run lint
 	@npx --yes markdownlint-cli2 "**/*.md"
 	@if command -v codespell >/dev/null 2>&1; then codespell; else echo "codespell not installed (pip install codespell); spelling not checked"; fi
 

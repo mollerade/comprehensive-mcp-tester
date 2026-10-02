@@ -1,0 +1,29 @@
+name: Devcontainer
+
+# Proves the devcontainer boots to a green `npm test`: builds it and runs the
+# full suite inside, whenever the container definition changes, and weekly.
+on:
+  pull_request:
+    paths: ['.devcontainer/**', '.github/workflows/devcontainer.yml']
+  push:
+    branches: [main]
+    paths: ['.devcontainer/**', '.github/workflows/devcontainer.yml']
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boot:
+    name: Devcontainer runs the test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
+        with:
+          push: never
+          runCmd: npm test

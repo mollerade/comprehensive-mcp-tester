@@ -1,0 +1,12 @@
+{
+  "name": "mcp-tester-lint",
+  "private": true,
+  "description": "The ESLint toolchain, kept apart so the project's own install stays Playwright only. Install with: npm ci --prefix tools/lint",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-sonarjs": "4.2.1",
+    "globals": "17.12.0"
+  }
+}

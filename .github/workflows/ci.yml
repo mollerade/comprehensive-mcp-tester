@@ -4,28 +4,53 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
 
       - run: npm ci
 
+      - name: No known vulnerabilities, and every package's registry signature is valid
+        run: |
+          npm audit --audit-level=low
+          npm audit signatures
+
       - name: Install Chromium for end-to-end tests
         run: npx playwright install --with-deps chromium
 
-      - run: npm test
+      - name: Install the lint toolchain, for the lint gate's own tests
+        run: npm ci --prefix tools/lint
+
+      - name: Every test suite, with a JUnit report
+        run: npm run test:ci
+
+      - name: Failing tests by acceptance criterion
+        if: always()
+        run: node scripts/ci-summary.mjs "reports/junit-node${{ matrix.node }}.xml"
+
+      - name: Upload the JUnit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-node${{ matrix.node }}
+          path: reports/
+          if-no-files-found: error
 
       - name: Every acceptance criterion has a test
         run: npm run test:trace
@@ -46,14 +71,33 @@ jobs:
 
       - name: Upload build (worker.js to paste into Cloudflare, worker.mjs, index.html)
         if: matrix.node == 24
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mcp-tester-dist
           path: dist/
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/lint/package-lock.json
+
+      - run: npm ci --prefix tools/lint
+
+      - name: ESLint at zero findings; the complexity baseline only shrinks
+        run: npm run lint
+
   docs-lint:
     name: Docs lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -89,4 +133,26 @@ jobs:
         uses: codespell-project/actions-codespell@e3258cca84ce02b0bb36a3d41f2c18f719a0cc1a # v2.4.3
         with:
           # The action ignores .codespellrc's skip list, so repeat it here
-          skip: ./node_modules,./dist,./build,./package-lock.json,./.git
+          skip: ./node_modules,./tools/lint/node_modules,./dist,./build,./package-lock.json,./.git
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The review action fails outright where the repository's dependency
+      # graph is off; this skips it with a warning instead (a 404 only).
+      - name: Is the dependency graph on?
+        id: graph
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/dependency-graph.mjs
+
+      - name: No new dependency with a known vulnerability
+        if: steps.graph.outputs.on == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: low

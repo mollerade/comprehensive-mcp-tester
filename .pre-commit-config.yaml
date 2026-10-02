@@ -1,0 +1,29 @@
+# Fast checks before each commit, the same ones CI's docs job runs:
+#   pre-commit install        once, to run them on every commit
+#   pre-commit run --all-files
+# Hook repositories are pinned by commit (pre-commit autoupdate --freeze).
+repos:
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
+    hooks:
+      - id: markdownlint-cli2
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: 57b21406f092110c18776e39b0bda50d37c945c8  # frozen: v2.4.3
+    hooks:
+      - id: codespell
+
+  - repo: local
+    hooks:
+      - id: check-readme
+        name: README follows the template layout
+        entry: node scripts/check-readme.mjs
+        language: system
+        files: ^(README\.md|package\.json)$
+        pass_filenames: false
+      - id: check-links
+        name: every relative link and anchor resolves
+        entry: node scripts/check-links.mjs
+        language: system
+        files: \.md$
+        pass_filenames: false

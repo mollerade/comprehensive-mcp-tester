@@ -10,6 +10,7 @@ Decisions that shape MCP Tester and would otherwise be questioned again. Each re
 | [0004](0004-three-state-diagnostics.md) | The diagnostics timeline uses three states | Accepted |
 | [0005](0005-no-bundled-mermaid.md) | Flow diagrams export as Mermaid text; Mermaid.js is not bundled | Accepted |
 | [0006](0006-manual-with-mkdocs.md) | The user manual is built with MkDocs 1.x and Material, pinned | Accepted |
+| [0007](0007-lint-gate.md) | ESLint in its own toolchain, a shrinking complexity baseline, and no formatter | Accepted |
 
 ## Adding a record
 

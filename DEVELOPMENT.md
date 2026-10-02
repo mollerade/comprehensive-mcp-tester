@@ -6,13 +6,15 @@ Everything needed to work on MCP Tester: setup, the layout, the test suites, and
 
 - Node.js 22 or later (see [`docs/POLICIES.md`](docs/POLICIES.md)).
 - `npm install`. Playwright is the only dependency, and only for the end-to-end tests.
-- For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one. Without it those tests skip rather than fail.
+- For linting, `npm ci --prefix tools/lint` once: ESLint lives in its own package so the project's install stays Playwright only ([ADR 0007](docs/adr/0007-lint-gate.md)).
+- For the end-to-end tests, a Chromium build: `npx playwright install chromium`, or point `PW_CHROMIUM_PATH` at one (then only that one is tried). Without it those tests skip locally; with `CI=true` they fail, so a broken browser install cannot hide UI regressions in CI.
 
 The `Makefile` wraps the npm scripts (`make help` lists every target), so either works:
 
 ```sh
 make check              # test + trace + readme + build: everything CI's test job checks, offline
-make lint               # markdownlint and codespell
+npm run lint            # ESLint at zero findings; the complexity baseline only shrinks
+make lint               # ESLint, markdownlint and codespell
 make docs               # the user manual in build/manual-site (needs: pip install --require-hashes -r docs/manual/requirements.txt)
 npm run dev             # local server on http://127.0.0.1:8787; restarts on core/host changes, UI edits show on reload
 npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
@@ -51,17 +53,24 @@ test('AC-QA-TRACE-01: covered AC passes', () => { /* ... */ });
 
 | CI job | What it checks | Locally |
 | :--- | :--- | :--- |
-| Test (Node 22, 24) | Every suite, including e2e with Chromium | `npm test` |
+| Test (Node 22, 24) | Every suite, including e2e with Chromium, which fails rather than skips when `CI=true`; a JUnit report per Node version, uploaded, with failing tests by acceptance criterion in the job summary | `npm run test:ci` (writes `reports/junit-node<major>.xml`) |
 | Test (Node 22, 24) | Every acceptance criterion has a test | `npm run test:trace` |
 | Test (Node 22, 24) | The build and its self-checks; nothing under `src/core/` imports a `node:` module or a Cloudflare-only API | `make build` |
 | Test (Node 22, 24) | A staged install puts the `mcp-tester` command in place | `make DESTDIR=/tmp/stage install` |
+| Test (Node 22, 24) | No known vulnerability, and valid registry signatures | `npm audit && npm audit signatures` |
+| Test (Node 22, 24) | The build is reproducible: a rebuild from a fresh export is byte-identical | see the CI step |
+| Dependency review (pull requests) | No new dependency with a known vulnerability; skipped with a warning where the repository's dependency graph is off (`scripts/dependency-graph.mjs`) | not local |
+| CodeQL | Static analysis of every JavaScript file (security-extended queries) | not local |
+| Devcontainer (when it changes, and weekly) | The devcontainer builds and the full suite passes inside it | open the repository in a container |
+| Scorecard (`main`, weekly) | OpenSSF Scorecard, published to code scanning | not local |
+| Lint | ESLint at zero findings, the client ES5 and module-free, and the complexity ceilings (cyclomatic 10, cognitive 15, 60 lines per function, 500 per file) with a baseline of existing offenders that may only shrink | `npm run lint` |
 | Docs lint | Markdown style | `npx markdownlint-cli2 "**/*.md"` |
 | Docs lint | Spelling | `codespell` (from `pip install codespell`) |
 | Docs lint | README section order, no unfilled template tokens | `npm run check:readme` |
 | Docs lint | Every relative link and anchor in the Markdown resolves | `make links` |
 | Docs lint | The user manual builds in strict mode (a broken link or anchor fails it) | `make docs` |
 
-The docs-lint tools and MkDocs run in CI only; they are not project dependencies. MkDocs is pinned by hash in `docs/manual/requirements.txt` ([ADR 0006](docs/adr/0006-manual-with-mkdocs.md)).
+The docs-lint tools and MkDocs run in CI only; they are not project dependencies. `pre-commit install` runs markdownlint, codespell and the README and link checks before each commit (`.pre-commit-config.yaml`, hooks pinned by commit), and the devcontainer (`.devcontainer/`) boots to a working `npm test`, end-to-end tests included. MkDocs is pinned by hash in `docs/manual/requirements.txt` ([ADR 0006](docs/adr/0006-manual-with-mkdocs.md)).
 
 ## Releases
 
