@@ -22,6 +22,7 @@
     "test:trace": "node scripts/check-traceability.mjs",
     "check:readme": "node scripts/check-readme.mjs",
     "check:links": "node scripts/check-links.mjs",
+    "compliance": "node scripts/compliance.mjs",
     "deploy": "npm run build && npx wrangler deploy"
   },
   "devDependencies": {

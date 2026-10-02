@@ -131,7 +131,7 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 | Exploring | Tools, resources and prompts; form or raw JSON-RPC; raw request and response panels | Shipped |
 | Authentication | MCP OAuth discovery, CIMD / DCR, PKCE, `iss` check; bearer, API key, client credentials | Shipped (0.10.0) |
 | Diagnostics | Log with timing, health monitor, ok / slow / failed timeline, latency chart | Shipped |
-| Compliance | Pass / warn / fail check against the protocol version the server claims | In progress: rule engine done, rules and report next ([roadmap 4](ROADMAP.md)) |
+| Compliance | Pass / warn / fail check against the protocol version the server claims | In progress: engine and 26 rules, run from the command line; authorization rules and the in-app report next ([roadmap 4](ROADMAP.md)) |
 | Workflow | Log-driven hints, flow diagram, replay, copy as cURL, variables, collections | Planned ([roadmap 5](ROADMAP.md)) |
 | Packaging | Docker image; signed Mac and Windows builds | Planned ([roadmap 6 and 7](ROADMAP.md)) |
 | Agent playground | Test tool descriptions with a local model | Planned ([roadmap 8](ROADMAP.md)) |
@@ -159,6 +159,8 @@ Every sign-in step appears in a trace (ok / warning / failed) and in the Log, be
 - **Token renewal.** A token that expires within a minute is renewed before the next request: with the refresh token after an OAuth sign-in, or with the client credentials again. A 401 to the current token renews it once and resends the request. Each renewal is a trace step and a Log entry; one that fails is not retried, and you sign in again.
 - **Issuer mismatch.** Authorization server metadata whose `issuer` differs from the one the resource names must not be used (RFC 8414 §3.3), so discovery stops. To test the rest of a server that has this bug, turn on **Continue past an issuer mismatch** (off by default): discovery carries on, with a warning in the dialog and the trace. The `iss` in the authorization response is still checked.
 - **Pop-ups.** Sign-in normally happens in a pop-up. If pop-ups are blocked, the page redirects to the sign-in page and picks up where it left off when it comes back. Only the in-flight request is kept (in this tab's `sessionStorage`), and it is deleted as soon as the page returns. A client secret is never kept: if the sign-in needs one, you are asked to enter it again, or you can allow pop-ups.
+
+**Compliance check.** `npm run compliance -- <server url>` probes a server and grades it against the protocol version it claims: JSON-RPC 2.0 messages, Streamable HTTP status codes and content types, sessions or stateless version negotiation, the handshake, and what it lists (capabilities, tool names and JSON Schemas, `x-mcp-header` annotations, resources, prompts, paging). Each finding links the spec section, and the report is Markdown, or JSON with `--json`; the exit code is 1 when a rule fails. The probes never call a tool, read a resource or get a prompt. Add `--header "Authorization: Bearer $TOKEN"` for a server that needs a sign-in. An in-app report is planned.
 
 **Diagnostics.** The health monitor probes the server on an interval and records every call. The timeline uses three states (ok / slow / failed), with the failure kind in tooltips and the breakdown table; the latency chart breaks its line across failures so a lone success between failures still shows.
 
@@ -215,6 +217,7 @@ make check              # every suite, the traceability check, the README check 
 make dev                # local server; restarts on core/host changes, UI edits show on reload
 make lint               # markdownlint and codespell
 make mock               # mock MCP server on http://127.0.0.1:8788/mcp
+npm run compliance -- http://127.0.0.1:8788/scenario/id-mismatch/mcp   # grade a server; every rule has a mock scenario that breaks it
 make help               # every target; each wraps an npm script, so npm run ... works too
 ```
 
