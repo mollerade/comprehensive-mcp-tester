@@ -54,3 +54,10 @@ test('attestations are skipped for pull requests from forks, which get no OIDC t
   const publish = workflow.split('- name: Publish the release')[1].split('- name:')[0];
   assert.match(publish, /if: env\.DRY_RUN == 'false'/, 'publishing stays a real-release step');
 });
+
+test('a dry run composes the notes around a stand-in when generate-notes is refused', () => {
+  const step = read('.github/workflows/release.yml').split('- name: Release notes')[1].split('- uses:')[0];
+  assert.match(step, /if ! gh api "repos\/\$REPO\/releases\/generate-notes"/, 'the API call is guarded');
+  assert.match(step, /\[ "\$DRY_RUN" = true \] \|\| exit 1/, 'a real release still fails when the API does');
+  assert.match(step, /\*\*Full Changelog\*\*: https:\/\/github\.com\/%s\/commits\/%s/, 'the stand-in carries the Full Changelog line the composer requires');
+});
