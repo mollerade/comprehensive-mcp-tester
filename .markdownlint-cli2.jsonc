@@ -14,5 +14,6 @@
     // Keep a Changelog repeats "Added" / "Changed" under each release.
     "MD024": { "siblings_only": true }
   },
-  "ignores": ["**/node_modules/**", "dist/**", "build/**"]
+  // LICENSE.md is the licence text verbatim, which must not be reformatted.
+  "ignores": ["**/node_modules/**", "dist/**", "build/**", "LICENSE.md"]
 }

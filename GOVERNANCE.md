@@ -4,7 +4,7 @@ How decisions are made in MCP Tester today. It is a small project, and this page
 
 ## Roles
 
-- **Author: [@mollerade](https://github.com/mollerade).** Created the project and holds its copyright. Decides what only the owner can: the licence ([#51](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51)), the product's direction, and whether a change from the fork is taken into [mollerade/comprehensive-mcp-tester](https://github.com/mollerade/comprehensive-mcp-tester).
+- **Author: [@mollerade](https://github.com/mollerade).** Created the project and holds its copyright. Decides what only the owner can: the licence (PolyForm Noncommercial 1.0.0, see [LICENSE.md](LICENSE.md)) and permission for commercial use, the product's direction, and whether a change from the fork is taken into [mollerade/comprehensive-mcp-tester](https://github.com/mollerade/comprehensive-mcp-tester).
 - **Fork maintainer: [@sebastienrousseau](https://github.com/sebastienrousseau).** Maintains [sebastienrousseau/comprehensive-mcp-tester](https://github.com/sebastienrousseau/comprehensive-mcp-tester), where the roadmap issues are tracked, reviews and merges pull requests there, cuts releases, and offers each merged change to the author's repository as a pull request.
 - **Contributors.** Anyone proposing an issue or a pull request, following [CONTRIBUTING.md](CONTRIBUTING.md).
 

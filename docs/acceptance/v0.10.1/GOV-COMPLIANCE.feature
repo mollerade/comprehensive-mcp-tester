@@ -10,8 +10,7 @@ Feature: Governance and supply-chain files for L2 compliance
     When it is audited
     Then SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, and .github templates exist
 
-  # Blocked on the author choosing a licence (#51).
-  @AC-GOV-COMPLIANCE-02 @suite:tooling @pending
+  @AC-GOV-COMPLIANCE-02 @suite:tooling
   Scenario: License is declared once chosen
     Given the owner has chosen a license
     When the repo is audited

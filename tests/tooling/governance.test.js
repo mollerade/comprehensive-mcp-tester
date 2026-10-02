@@ -25,6 +25,23 @@ test('AC-GOV-COMPLIANCE-01: governance files present', () => {
   assert.match(read('CONTRIBUTING.md'), /^## Acceptance criteria and regression tests$/m);
 });
 
+test('AC-GOV-COMPLIANCE-02: license is declared once chosen', () => {
+  const spdx = 'PolyForm-Noncommercial-1.0.0';
+  assert.ok(existsSync(join(ROOT, 'LICENSE.md')), 'missing LICENSE.md');
+  const license = read('LICENSE.md');
+  assert.match(license, /^# PolyForm Noncommercial License 1\.0\.0$/m);
+  assert.match(license, /^Required Notice: Copyright /m, 'the licensor\'s Required Notice line');
+  assert.equal(JSON.parse(read('package.json')).license, spdx);
+  assert.match(read('CITATION.cff'), new RegExp('^license: ' + spdx + '$', 'm'));
+  assert.equal(read('README.md').split('\n')[0], '<!-- SPDX-License-Identifier: ' + spdx + ' -->');
+  // Copies carry the terms' URL and the Required Notice (the licence's Notices section)
+  const notice = license.match(/^Required Notice: .*$/m)[0];
+  for (const f of ['src/ui/index.html', 'scripts/build.mjs']) {
+    assert.ok(read(f).includes(notice), f + ' does not carry the Required Notice');
+    assert.ok(read(f).includes('https://polyformproject.org/licenses/noncommercial/1.0.0'), f + ' does not link the terms');
+  }
+});
+
 test('the community and agent files are present and filled in', () => {
   for (const f of ['GOVERNANCE.md', 'SUPPORT.md', 'CITATION.cff', 'AGENTS.md', '.pre-commit-config.yaml', '.devcontainer/devcontainer.json']) {
     assert.ok(existsSync(join(ROOT, f)), 'missing ' + f);
