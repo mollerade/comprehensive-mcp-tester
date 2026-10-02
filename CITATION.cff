@@ -5,6 +5,7 @@ abstract: >-
   A browser-based client for testing and diagnosing Model Context Protocol
   servers, hosted on Cloudflare or run locally.
 type: software
+license: PolyForm-Noncommercial-1.0.0
 authors:
   - given-names: Christian
     alias: mollerade

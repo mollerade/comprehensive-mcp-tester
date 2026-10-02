@@ -4,6 +4,7 @@
   "description": "A browser-based MCP (Model Context Protocol) client for testing and diagnosing MCP servers. Runs on Cloudflare Workers or locally.",
   "type": "module",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "bin": {
     "mcp-tester": "src/hosts/node-server.js"
   },

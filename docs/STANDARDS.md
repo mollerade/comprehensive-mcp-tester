@@ -14,13 +14,13 @@ The standard is applied in six phases, one per release. This page records where 
 
 | # | Category | Before phase 1 | After phase 1 | Owner of the remaining gaps |
 | :--- | :--- | :---: | :---: | :--- |
-| 1 | Identity and README | 3 | 6 | Licence [#51](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/51); CI-checked install snippets |
+| 1 | Identity and README | 3 | 6 | CI-checked install snippets |
 | 2 | Documentation | 2 | 8 | External links not checked; migration guides not applicable |
 | 3 | Build and install UX | 4 | 7 | Install snippets exercised in CI; manpages not applicable |
 | 4 | Releases | 1 | 2 | Signed, automated releases with checksums, SBOM, provenance [#54](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/54) |
-| 5 | Packaging and distribution | 1 | 5 | Licence (#51) blocks redistribution; container image [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) |
+| 5 | Packaging and distribution | 1 | 5 | Container image [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23); the noncommercial licence limits who may redistribute |
 | 6 | CI quality gates | 5 | 8 | Coverage threshold; Halstead difficulty (no ESLint rule); fuzzing |
-| 7 | Supply chain and security | 1 | 6 | Scorecard below 9: branch protection, code review and a licence (#51) |
+| 7 | Supply chain and security | 1 | 6 | Scorecard below 9: branch protection and code review |
 | 8 | Community and governance | 2 | 9 | A CI-checked table across a repository family (not applicable to one repository) |
 
 ## Evidence by category
@@ -32,7 +32,7 @@ The standard is applied in six phases, one per release. This page records where 
   - The README section order, unfilled template tokens, and any stated current version (against `package.json`) are checked in CI (`npm run check:readme`).
   - A stability section naming what counts as breaking, and a security section that leads with private reporting and states the resource limits and the fuzzing status.
   - A logo, a stated versioning rule, a deprecation window, and a rule for raising the Node floor ([`docs/POLICIES.md`](POLICIES.md)).
-- **Missing, and it needs the author's decision:** a licence (#51). The badge and licence section say so rather than guess one.
+- **Licence:** PolyForm Noncommercial 1.0.0 ([LICENSE.md](../LICENSE.md)), chosen by the author; the badge, the README's licence section, `package.json` and `CITATION.cff` all declare it.
 - **Missing, and work for later phases:** install snippets exercised in CI; a rendered manual (#53).
 - **Not applicable:**
   - A registry badge, as nothing is published.
@@ -72,7 +72,7 @@ The standard is applied in six phases, one per release. This page records where 
 - **Has:**
   - `docs/packaging.md` for repackagers: the two shapes, toolchain, the no-runtime-dependency model, offline build and tests, install layout, and how to verify a build.
   - A reproducible build, checked in CI on every push: the same commit gives byte-identical files on Linux and macOS, with Node 22 and 24.
-- **Missing:** a licence to redistribute under (#51), and a container image, which is roadmap item 6 (#23).
+- **Missing:** a container image, which is roadmap item 6 (#23). Redistribution is allowed for noncommercial purposes only.
 - **Not applicable yet:**
   - deb, rpm, AUR, Homebrew and Nix packages, and Repology tracking. The product is a web page plus a small server; revisit with the desktop builds (#26).
   - C-FFI.
@@ -102,7 +102,7 @@ The standard is applied in six phases, one per release. This page records where 
   - Actions pinned by commit SHA; the new docs-lint job's actions are pinned, the older ones are not.
   - An OpenSSF Scorecard run.
   - `npm audit` in CI.
-  - REUSE / SPDX headers, which wait for the licence (#56, #51).
+  - REUSE / SPDX headers per file (#56).
 - **Not applicable yet:** signing keys (`KEYS.asc`), until releases are signed (#54).
 
 ### 8. Community and governance

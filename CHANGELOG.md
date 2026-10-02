@@ -6,6 +6,10 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ## [Unreleased]
 
+### Licence
+
+- **MCP Tester is now licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).** Anyone may use, change and share it for noncommercial purposes; commercial use, including use at work for a company, needs the author's permission. `package.json`, `CITATION.cff`, the README and the built files declare it, and copies carry the licence URL and its Required Notice.
+
 ### Security
 
 - **The proxy reaches only allowed targets.** It accepts http and https only, and refuses loopback, private, link-local, cloud-metadata and other special-purpose addresses (IPv4 and IPv6, in every spelling the URL parser normalises, including IPv4 carried in IPv6, 6to4 and NAT64) unless their host or exact origin is listed in `MCP_TESTER_ALLOWED_TARGETS`. The local server also checks the addresses a name resolves to in the socket's own lookup, so DNS rebinding cannot slip past the check.
