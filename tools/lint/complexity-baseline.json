@@ -1,13 +1,13 @@
 {
   "src/core/proxy.js": {
     "complexity": {
-      "proxyMcp": 39
+      "proxyMcp": 32
     },
     "max-lines-per-function": {
-      "proxyMcp": 145
+      "proxyMcp": 133
     },
     "sonarjs/cognitive-complexity": {
-      "proxyMcp": 41
+      "proxyMcp": 34
     }
   },
   "src/hosts/cloudflare.js": {
@@ -17,13 +17,7 @@
   },
   "src/hosts/node-server.js": {
     "complexity": {
-      "(unnamed #1)": 20
-    },
-    "max-lines-per-function": {
-      "createServer": 63
-    },
-    "sonarjs/cognitive-complexity": {
-      "(unnamed #1)": 21
+      "(unnamed #1)": 14
     }
   },
   "src/ui/js/auth.js": {

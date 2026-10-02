@@ -3,6 +3,7 @@ name = "mcp-tester"
 main = "dist/worker.mjs"
 compatibility_date = "2025-09-01"
 
-# Restrict which MCP servers this Worker may proxy to (recommended):
+# Required: the Worker refuses every target until this lists them
+# (MCP and authorization server hosts, or "*" for any public host):
 # [vars]
-# ALLOWED_ORIGINS = "developer.hsbc.com"
+# MCP_TESTER_ALLOWED_TARGETS = "developer.hsbc.com"

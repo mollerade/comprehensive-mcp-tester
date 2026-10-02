@@ -66,7 +66,7 @@ Not yet implemented from 2026-07-28, and not yet scheduled: MRTR (`resultType: "
 
 ## 6. Docker image for the local server (planned)
 
-A minimal, non-root image of the Node host ([#24](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/24)), built, scanned and published multi-arch to GHCR with an SBOM and provenance ([#25](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/25)). The container binds `0.0.0.0`, so `MCP_TESTER_ALLOWED_HOSTS` matters.
+A minimal, non-root image of the Node host ([#24](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/24)), built, scanned and published multi-arch to GHCR with an SBOM and provenance ([#25](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/25)). The container binds `0.0.0.0`, so `MCP_TESTER_ALLOWED_HOSTS` matters, and the server will not start without `MCP_TESTER_TOKEN`.
 
 ## 7. Signed Mac and Windows builds (planned)
 

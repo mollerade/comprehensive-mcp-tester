@@ -16,14 +16,30 @@
  *
  * A failed transport (timeout / network) is reported with HTTP 200 and
  * envelope status 0, so the UI can always read the diagnostics.
+ *
+ * Every URL fetched — the target and each redirect hop — goes through the
+ * target policy (target-policy.js). A refused URL is answered 403
+ * { error, hint? } and never fetched. Redirects are followed here, not by
+ * fetch, so each hop is checked; a hop to another origin carries only the
+ * protocol headers, never credentials, cookies or the session.
  */
+import { checkTarget, parseTargetList, REFUSED_CODE } from './target-policy.js';
 
 export const DEFAULT_TIMEOUT_MS = 15000;
 export const MAX_TIMEOUT_MS = 120000;
 export const MAX_RETRIES = 3;
 
+export const MAX_REDIRECTS = 5;
+
 // Hop-by-hop and identity headers never forwarded to the origin
 export const SKIP_HEADERS = ['host', 'origin', 'referer', 'connection', 'upgrade', 'transfer-encoding', 'content-length'];
+
+// What a redirect to another origin may still carry: protocol, not identity
+var CROSS_ORIGIN_HEADERS = ['accept', 'content-type', 'mcp-protocol-version', 'mcp-method', 'mcp-name', 'last-event-id', 'user-agent'];
+function protocolHeader(name) {
+  name = name.toLowerCase();
+  return CROSS_ORIGIN_HEADERS.indexOf(name) !== -1 || name.indexOf('mcp-param-') === 0;
+}
 
 export function clampInt(v, lo, hi, dflt) {
   var n = parseInt(v, 10);
@@ -33,22 +49,111 @@ export function clampInt(v, lo, hi, dflt) {
   return n;
 }
 
-/** "a.com, b.com" → ["a.com","b.com"]; empty/undefined → [] (no restriction) */
+/** "a.com, b.com" → ["a.com","b.com"]; empty/undefined → [] */
 export function parseAllowedOrigins(str) {
-  return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  return parseTargetList(str);
+}
+
+function refused(check, extra) {
+  var json = { error: check.error };
+  if (check.hint) json.hint = check.hint;
+  if (check.allowed) json.allowed = check.allowed;
+  return { status: 403, json: Object.assign(json, extra || {}) };
+}
+
+function isRedirect(resp) {
+  return resp.status >= 300 && resp.status <= 399 && resp.status !== 304 && !!resp.headers.get('location');
+}
+
+/** Where a redirect leads: { next } or { refusal }; records the hop in redirects */
+function redirectTarget(resp, url, redirects, policy) {
+  var location = resp.headers.get('location');
+  var next;
+  try { next = new URL(location, url); } catch { next = null; }
+  redirects.push({ status: resp.status, location: next ? next.href : location });
+  if (!next) return { refusal: { status: 502, json: { error: 'Redirect to an invalid URL: ' + location, redirects: redirects } } };
+  if (redirects.length > MAX_REDIRECTS) {
+    return { refusal: { status: 502, json: { error: 'Too many redirects (more than ' + MAX_REDIRECTS + ')', redirects: redirects } } };
+  }
+  var check = checkTarget(next, policy);
+  if (check) {
+    return { refusal: refused({ error: 'Redirect refused: ' + check.error, hint: check.hint, allowed: check.allowed }, { redirects: redirects }) };
+  }
+  return { next: next };
+}
+
+/** The request to send to the next hop: req is { method, body, headers } and is updated in place */
+function followRedirect(req, status, sameOrigin) {
+  // 303, and 301/302 after a POST, continue as a GET without a body (as browsers do)
+  if (status === 303 || ((status === 301 || status === 302) && req.method === 'POST')) {
+    if (req.method !== 'HEAD') req.method = 'GET';
+    req.body = null;
+    req.headers.delete('content-type');
+  }
+  if (!sameOrigin) {
+    var kept = new Headers();
+    req.headers.forEach(function (v, k) { if (protocolHeader(k)) kept.set(k, v); });
+    req.headers = kept;
+  }
+}
+
+/**
+ * fetch with redirects followed by hand, each hop checked against the policy.
+ * Resolves { resp, redirects } or { refusal } (a result to return as is).
+ */
+async function fetchChecked(doFetch, url, init, policy) {
+  var redirects = [];
+  var req = { method: init.method, body: init.body, headers: new Headers(init.headers) };
+  for (;;) {
+    var resp = await doFetch(url.href, {
+      method: req.method, headers: req.headers, body: req.body, redirect: 'manual', signal: init.signal,
+    });
+    if (!isRedirect(resp)) return { resp: resp, redirects: redirects };
+    try { if (resp.body && resp.body.cancel) await resp.body.cancel(); } catch { /* already consumed */ }
+    var hop = redirectTarget(resp, url, redirects, policy);
+    if (hop.refusal) return hop;
+    followRedirect(req, resp.status, hop.next.origin === url.origin);
+    url = hop.next;
+  }
+}
+
+/** Headers for the origin: the caller's minus hop-by-hop ones, with MCP's Accept and Content-Type repaired */
+function originHeaders(headers, purpose, method) {
+  var out = new Headers();
+  var keys = Object.keys(headers);
+  for (var i = 0; i < keys.length; i++) {
+    if (SKIP_HEADERS.indexOf(keys[i].toLowerCase()) === -1) out.set(keys[i], headers[keys[i]]);
+  }
+  if (purpose === 'oauth') {
+    if (!out.get('accept')) out.set('accept', 'application/json');
+  } else {
+    repairMcpHeaders(out, method);
+  }
+  return out;
+}
+
+// MCP Streamable HTTP requires the client to accept BOTH content types.
+// Enforced here so it can never be missing or partial.
+function repairMcpHeaders(out, method) {
+  var accept = out.get('accept') || '';
+  if (accept.indexOf('application/json') === -1 || accept.indexOf('text/event-stream') === -1) {
+    out.set('accept', 'application/json, text/event-stream');
+  }
+  if (!out.get('content-type') && method !== 'GET' && method !== 'HEAD') out.set('content-type', 'application/json');
 }
 
 /**
  * @param {object} payload  parsed proxy request from the UI
  * @param {object} env
  * @param {Function} env.fetch          fetch implementation (global fetch in every host)
- * @param {string[]} [env.allowedOrigins] target hostnames allowed; empty = any
+ * @param {string[]} [env.allowTargets] the operator's target list (see target-policy.js); env.allowedOrigins is the old name
+ * @param {boolean} [env.allowAnyPublic] what an empty list means: any public target (default) or none (the Worker)
  * @param {string|null} [env.colo]      where this proxy instance runs (diagnostics only)
  */
 export async function proxyMcp(payload, env) {
   env = env || {};
   var doFetch = env.fetch || fetch;
-  var allowed = env.allowedOrigins || [];
+  var policy = { allow: env.allowTargets || env.allowedOrigins || [], allowAnyPublic: env.allowAnyPublic !== false };
   var colo = env.colo || null;
 
   payload = payload || {};
@@ -69,29 +174,10 @@ export async function proxyMcp(payload, env) {
     return { status: 400, json: { error: 'Invalid target URL' } };
   }
 
-  if (allowed.length > 0 && allowed.indexOf(parsed.hostname) === -1) {
-    return { status: 403, json: { error: 'Target domain not in allowlist', allowed: allowed } };
-  }
+  var check = checkTarget(parsed, policy);
+  if (check) return refused(check);
 
-  var outHeaders = new Headers();
-  var hKeys = Object.keys(headers);
-  for (var i = 0; i < hKeys.length; i++) {
-    if (SKIP_HEADERS.indexOf(hKeys[i].toLowerCase()) === -1) outHeaders.set(hKeys[i], headers[hKeys[i]]);
-  }
-
-  // MCP Streamable HTTP requires the client to accept BOTH content types.
-  // Enforced here so it can never be missing or partial.
-  var accept = outHeaders.get('accept') || '';
-  if (purpose === 'oauth') {
-    if (!accept) outHeaders.set('accept', 'application/json');
-  } else {
-    if (accept.indexOf('application/json') === -1 || accept.indexOf('text/event-stream') === -1) {
-      outHeaders.set('accept', 'application/json, text/event-stream');
-    }
-    if (!outHeaders.get('content-type') && method !== 'GET' && method !== 'HEAD') {
-      outHeaders.set('content-type', 'application/json');
-    }
-  }
+  var outHeaders = originHeaders(headers, purpose, method);
 
   var attemptLog = [];
   var lastErr = null;
@@ -104,13 +190,17 @@ export async function proxyMcp(payload, env) {
     var timer = setTimeout(function () { timedOut = true; controller.abort(); }, timeoutMs);
 
     try {
-      var resp = await doFetch(targetUrl, {
+      var fetched = await fetchChecked(doFetch, parsed, {
         method: method,
         headers: outHeaders,
         body: (method === 'GET' || method === 'HEAD') ? null : body,
-        redirect: 'follow',
         signal: controller.signal,
-      });
+      }, policy);
+      if (fetched.refusal) {
+        clearTimeout(timer);
+        return fetched.refusal;      // a policy answer, not a transport failure: never retried
+      }
+      var resp = fetched.resp;
 
       // fetch resolves once response headers arrive — time to first byte
       var tHeaders = Date.now();
@@ -141,11 +231,14 @@ export async function proxyMcp(payload, env) {
             colo: colo,
             targetHost: parsed.hostname,
             timeoutMs: timeoutMs,
+            redirects: fetched.redirects,
           },
         },
       };
     } catch (err) {
       clearTimeout(timer);
+      // The host refused to connect (a name that resolves to a special-purpose address): a policy answer
+      if (err && err.code === REFUSED_CODE) return refused({ error: err.message, hint: err.hint });
       var ms = Date.now() - t0;
       var isTimeout = timedOut || (err && err.name === 'AbortError');
       lastErr = {

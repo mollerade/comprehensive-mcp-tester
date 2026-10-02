@@ -55,7 +55,7 @@ export function platformViolations(dir) {
 
 /** Core sources concatenated into the Worker, dependencies first */
 const CORE_FILES = [
-  'src/core/proxy.js', 'src/core/oauth-client.js', 'src/core/security-headers.js',
+  'src/core/target-policy.js', 'src/core/proxy.js', 'src/core/oauth-client.js', 'src/core/security-headers.js',
   'src/core/compliance/rules/version.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
 ];
 
@@ -82,9 +82,10 @@ function banner(format) {
     ' *',
     ...deploy,
     ' *',
-    ' * OPTIONAL: set ALLOWED_ORIGINS (Settings → Variables) to restrict which hosts this',
-    ' * Worker will proxy to, e.g. "developer.hsbc.com". Include the authorization server',
-    ' * hosts too if you sign in. This Worker is public: put Cloudflare Access in front of',
+    ' * REQUIRED: set MCP_TESTER_ALLOWED_TARGETS (Settings → Variables) to the hosts this',
+    ' * Worker may proxy to, e.g. "developer.hsbc.com", or "*" for any public host. Until',
+    ' * then /proxy refuses every target. Include the authorization server hosts too if you',
+    ' * sign in. This Worker is public: put Cloudflare Access in front of',
     ' * it before using it with credentials, with a bypass for /oauth/client-metadata.json',
     ' * so authorization servers can fetch the client metadata document.',
     ' */',
@@ -103,13 +104,13 @@ export function build({ write = true, coreDir = join(ROOT, 'src', 'core') } = {}
 
   const sw = banner('sw') + htmlConst + core + '\n' + host + '\n' +
     'addEventListener("fetch", function (event) {\n' +
-    '  event.respondWith(handleRequest(event.request, typeof ALLOWED_ORIGINS !== "undefined" ? ALLOWED_ORIGINS : ""));\n' +
+    '  event.respondWith(handleRequest(event.request, typeof MCP_TESTER_ALLOWED_TARGETS !== "undefined" ? MCP_TESTER_ALLOWED_TARGETS : (typeof ALLOWED_ORIGINS !== "undefined" ? ALLOWED_ORIGINS : "")));\n' +
     '});\n';
 
   const mod = banner('module') + htmlConst + core + '\n' + host + '\n' +
     'export default {\n' +
     '  fetch(request, env) {\n' +
-    '    return handleRequest(request, (env && env.ALLOWED_ORIGINS) || "");\n' +
+    '    return handleRequest(request, (env && (env.MCP_TESTER_ALLOWED_TARGETS || env.ALLOWED_ORIGINS)) || "");\n' +
     '  },\n' +
     '};\n';
 

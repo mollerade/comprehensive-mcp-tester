@@ -11,18 +11,26 @@
  * would let any site drive it with a visitor's session. So /proxy rejects a
  * foreign Origin (403) and no response carries CORS grants, like the local host.
  *
+ * The Origin check stops other web pages, not direct requests, so a public
+ * Worker would also be a fetch relay for anyone who finds its URL. It is
+ * therefore closed by default: /proxy refuses every target until
+ * MCP_TESTER_ALLOWED_TARGETS (or the older ALLOWED_ORIGINS) lists them, and
+ * '*' opts in to any public target. The Worker has no DNS API, so only
+ * literal special-purpose addresses are refused here.
+ *
  * The build wraps this file into two entry points:
  *   dist/worker.js   Service Worker format — paste into the dashboard editor
  *   dist/worker.mjs  ES module format      — for `wrangler deploy`
- * Both call handleRequest(request, allowedOriginsString).
+ * Both call handleRequest(request, allowedTargetsString).
  */
-import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
+import { proxyMcp } from '../core/proxy.js';
+import { parseTargetList } from '../core/target-policy.js';
 import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
 import { CONTENT_SECURITY_POLICY } from '../core/security-headers.js';
 
 /* global HTML */
 
-export async function handleRequest(request, allowedOriginsStr) {
+export async function handleRequest(request, allowedTargetsStr) {
   var url = new URL(request.url);
 
   if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '' || url.pathname === CALLBACK_PATH)) {
@@ -46,7 +54,8 @@ export async function handleRequest(request, allowedOriginsStr) {
     }
     var result = await proxyMcp(payload, {
       fetch: fetch,
-      allowedOrigins: parseAllowedOrigins(allowedOriginsStr),
+      allowTargets: parseTargetList(allowedTargetsStr),
+      allowAnyPublic: false,
       // Where this Worker instance runs — useful when flapping is PoP-specific
       colo: (request.cf && request.cf.colo) ? request.cf.colo : null,
     });

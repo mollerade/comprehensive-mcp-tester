@@ -14,5 +14,5 @@ The page never talks to an MCP server itself. It posts every request to its own 
 
 - Any server is reachable regardless of its CORS headers, and every exchange can be timed and diagnosed in one place.
 - A new way to run the tool (Docker, desktop) is a new adapter, not a change to the UI or the proxy.
-- The proxy is a security boundary: the local server must not become an open proxy (loopback binding, `Host` and `Origin` checks, JSON-only), and the Worker must not become an open CORS proxy.
+- The proxy is a security boundary: the local server must not become an open proxy (loopback binding, `Host` and `Origin` checks, JSON-only), and the Worker must not become an open CORS proxy or an open fetch relay. Every target and redirect hop goes through one target policy.
 - A change to the envelope must update both hosts and their tests together.

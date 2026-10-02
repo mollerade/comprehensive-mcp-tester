@@ -38,7 +38,7 @@ const cspViolations = [];   // every Content-Security-Policy report, from the pa
 before(async () => {
   if (skip) return;
   mock = await startMockServer();
-  server = createServer({ allowedOrigins: '', allowedHosts: '' });
+  server = createServer({ allowedTargets: '127.0.0.1', allowedHosts: '', token: '' });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
@@ -470,6 +470,20 @@ test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async
   assert.deepEqual(await page.evaluate(() => window.state.tools), []);
   assert.equal(await page.textContent('#toolsBadge'), '0');
   assert.equal(await page.evaluate(() => document.body.textContent.includes('slow_list_tool')), false);
+});
+
+test('AC-SEC-PROXY-10: a refused target shows as a failed connection with the proxy\'s hint', { skip }, async () => {
+  if (await page.evaluate(() => window.state.connected)) await page.click('#connectBtn');
+  const mark = mock.calls.length;
+  // localhost is a loopback name and only 127.0.0.1 is listed for this server
+  await page.fill('#urlInput', mock.url.replace('127.0.0.1', 'localhost'));
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.diag.probes.some((p) => p.errorType === 'proxy'), null, { timeout: 5000 });
+  assert.equal(await page.evaluate(() => window.state.connected), false);
+  assert.equal(mock.calls.length, mark, 'the mock was never contacted');
+  assert.equal(await page.isVisible('#authModal'), false, 'a refusal is not an auth challenge');
+  await page.click('.tab-btn[data-tab="log"]');
+  assert.ok(await page.locator('text=MCP_TESTER_ALLOWED_TARGETS').count() > 0, 'the hint reaches the Log');
 });
 
 test('no horizontal overflow at phone width', { skip }, async () => {

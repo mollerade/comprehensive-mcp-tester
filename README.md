@@ -98,8 +98,10 @@ The local server is the version to use inside company networks: nothing leaves y
 ```sh
 npm install
 npm run mock            # mock MCP server on http://127.0.0.1:8788/mcp
-npm start               # the tester on http://127.0.0.1:8787, in a second terminal
+MCP_TESTER_ALLOWED_TARGETS=http://127.0.0.1:8788 npm start   # the tester on http://127.0.0.1:8787, in a second terminal
 ```
+
+The proxy refuses loopback and private addresses unless they are listed, so a local server such as the mock needs its origin in `MCP_TESTER_ALLOWED_TARGETS`. Public servers need nothing.
 
 Open <http://127.0.0.1:8787>, enter `http://127.0.0.1:8788/mcp` and press **Connect**. The tester works out which protocol era the server speaks, lists its tools, resources and prompts, and suggests a starting request for each tool. Every exchange appears in the **Log** with its status and timing, and **Diagnostics** tracks latency and failures over time.
 
@@ -164,9 +166,10 @@ Every sign-in step appears in a trace (ok / warning / failed) and in the Log, be
 
 | Variable | Where | Meaning |
 | :--- | :--- | :--- |
-| `ALLOWED_ORIGINS` | both | Comma-separated hosts the proxy may reach, e.g. `developer.hsbc.com`. Include your authorization server's host if you sign in with OAuth. Empty means any. |
+| `MCP_TESTER_ALLOWED_TARGETS` | both | Comma-separated hosts (any port) or exact origins the proxy may reach, e.g. `developer.hsbc.com,http://127.0.0.1:8788`. Include your authorization server's host if you sign in with OAuth. `*` means any public host. Loopback, private, link-local and other special-purpose addresses are reached only when listed. Empty means any public host on the local server, and **nothing** on the Worker. `ALLOWED_ORIGINS` is the older name and still works. |
 | `PORT`, `HOST` | local | Defaults `8787`, `127.0.0.1`. |
 | `MCP_TESTER_ALLOWED_HOSTS` | local | Extra `Host` header values to accept when serving under a hostname. |
+| `MCP_TESTER_TOKEN` | local | Access token, 32 or more characters. Required when `HOST` is not loopback; then every request needs it. The server prints an access link that sets a cookie; scripts send `Authorization: Bearer <token>`. |
 
 Request timeout and retries are set in the UI. Retries default to 0, so real failures stay visible.
 
@@ -222,9 +225,10 @@ CI runs the tests, the traceability check and the build on Node 22 and 24, and a
 
 Report vulnerabilities privately through GitHub, as [`SECURITY.md`](SECURITY.md) describes; never in a public issue.
 
-- **The local server is not an open proxy.** It binds to loopback. It rejects unknown `Host` headers, which blocks DNS rebinding, and it rejects `/proxy` calls from other origins. It also requires `Content-Type: application/json`, so no other web page you visit can use it to reach internal systems.
-- **The Cloudflare Worker is public.** Other web pages can't drive it: since 0.10.0, `/proxy` rejects foreign origins and sends no CORS grants. But anyone with its URL can still open it. Before using it with credentials:
-  - Set `ALLOWED_ORIGINS` to your MCP server and authorization server hosts.
+- **The local server is not an open proxy.** It binds to loopback. It rejects unknown `Host` headers, which blocks DNS rebinding, and it rejects `/proxy` calls from other origins. It also requires `Content-Type: application/json`, so no other web page you visit can use it to reach internal systems. It will not listen on another address without `MCP_TESTER_TOKEN`, and then every request needs the token.
+- **The proxy reaches only allowed targets.** Only http and https. Loopback, private (RFC 1918), link-local, cloud metadata and other special-purpose addresses, in any spelling the URL parser accepts and including IPv4 carried in IPv6, are refused unless listed in `MCP_TESTER_ALLOWED_TARGETS`. The local server also checks the addresses a name resolves to, when it connects. Redirects are followed by the proxy, at most five, and each hop is checked the same way; a hop to another origin carries no credentials, cookies or session.
+- **The Cloudflare Worker is public, and closed until configured.** Other web pages can't drive it: `/proxy` rejects foreign origins and sends no CORS grants. Since 0.10.1 it refuses every target until `MCP_TESTER_ALLOWED_TARGETS` is set, so a fresh deployment is not a fetch relay for anyone who finds its URL. Before using it:
+  - Set `MCP_TESTER_ALLOWED_TARGETS` to your MCP server and authorization server hosts (or `*` for any public host).
   - Put Cloudflare Access in front of it.
   - Add a bypass for `/oauth/client-metadata.json`, so authorization servers can fetch the client metadata document.
 - **Credentials stay in memory.** Auth keeps tokens and secrets in memory only and redacts them from the Log. The one exception is the pop-up fallback's in-flight request, kept in `sessionStorage` until the page returns.

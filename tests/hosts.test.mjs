@@ -13,7 +13,9 @@ import { build, platformViolations } from '../scripts/build.mjs';
 
 const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 import { assembleHtml } from '../src/ui/assemble.js';
-import { createServer } from '../src/hosts/node-server.js';
+import { createServer, startupProblem, isLoopbackBind } from '../src/hosts/node-server.js';
+import { createGuardedFetch } from '../src/hosts/guarded-fetch.js';
+import { proxyMcp } from '../src/core/proxy.js';
 import { startMockServer } from './fixtures/mock-mcp-server.mjs';
 
 let mock;
@@ -28,7 +30,7 @@ const initPayload = (url) => JSON.stringify({
 
 describe('Cloudflare Service Worker bundle (dist/worker.js)', () => {
   let handler;
-  const load = (globals = {}) => {
+  const load = (globals = { MCP_TESTER_ALLOWED_TARGETS: '127.0.0.1' }) => {
     const { sw } = build({ write: false });
     const ctx = vm.createContext({
       addEventListener: (type, fn) => { if (type === 'fetch') handler = fn; },
@@ -96,7 +98,7 @@ describe('Cloudflare module bundle (dist/worker.mjs)', () => {
     const worker = (await import(pathToFileURL(file).href)).default;
     const page = await worker.fetch(new Request('https://w.dev/'), {});
     assert.equal(await page.text(), assembleHtml());
-    const ok = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), {});
+    const ok = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), { MCP_TESTER_ALLOWED_TARGETS: '127.0.0.1' });
     assert.equal((await ok.json()).status, 200);
     const blocked = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), { ALLOWED_ORIGINS: 'x.com' });
     assert.equal(blocked.status, 403);
@@ -106,7 +108,7 @@ describe('Cloudflare module bundle (dist/worker.mjs)', () => {
 describe('Local Node server', () => {
   let server, base;
   before(async () => {
-    server = createServer({ allowedOrigins: '', allowedHosts: '' });
+    server = createServer({ allowedTargets: '127.0.0.1', allowedHosts: '', token: '' });
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     base = `http://127.0.0.1:${server.address().port}`;
   });
@@ -270,6 +272,98 @@ test('AC-SEC-CSP-01: both hosts send the policy', async () => {
       const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`);
       check('node ' + path, res.headers);
     }
+  } finally {
+    await new Promise((r) => { server.closeAllConnections?.(); server.close(r); });
+  }
+});
+
+// ── Target policy and access token (SEC-PROXY) ──
+
+test('AC-SEC-PROXY-06: the local server checks the addresses a name resolves to', async () => {
+  const port = new URL(mock.url).port;
+  // localhost is a name: the socket lookup resolves it to loopback and refuses
+  const guarded = createGuardedFetch({ allow: [] });
+  await assert.rejects(guarded(`http://localhost:${port}/mcp`, { method: 'GET' }), (e) => e.code === 'MCP_TESTER_TARGET_REFUSED' && /resolves to/.test(e.message));
+  // Through the proxy it is a 403, not a transport failure
+  const r = await proxyMcp({ url: `http://localhost:${port}/mcp`, method: 'GET' }, { fetch: guarded, allowTargets: ['localhost'] });
+  assert.equal(r.status, 403, 'the proxy policy let it through by name, but the connect-time check still refused');
+  // Listed for the guarded fetch: connects
+  const listed = createGuardedFetch({ allow: ['localhost'] });
+  const res = await listed(`http://localhost:${port}/mcp`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', id: 1, params: {} }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(res.headers.get('mcp-session-id'));
+  assert.match(await res.text(), /protocolVersion/);
+});
+
+test('AC-SEC-PROXY-07: the Worker is closed until targets are configured', async () => {
+  const { sw, mod } = build({ write: false });
+  let handler;
+  const ctx = vm.createContext({ addEventListener: (t, fn) => { if (t === 'fetch') handler = fn; }, Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console });
+  vm.runInContext(sw, ctx, { filename: 'worker.js' });
+  const res = await new Promise((resolve) => handler({ request: new Request('https://w.dev/proxy', { method: 'POST', body: initPayload('https://example.com/mcp') }), respondWith: resolve }));
+  assert.equal(res.status, 403);
+  assert.match((await res.json()).hint, /MCP_TESTER_ALLOWED_TARGETS/);
+
+  const file = join(mkdtempSync(join(tmpdir(), 'mcpt-')), 'worker.mjs');
+  writeFileSync(file, mod);
+  const worker = (await import(pathToFileURL(file).href)).default;
+  const closed = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload('https://example.com/mcp') }), {});
+  assert.equal(closed.status, 403);
+  const star = await worker.fetch(new Request('https://w.dev/proxy', { method: 'POST', body: initPayload(mock.url) }), { MCP_TESTER_ALLOWED_TARGETS: '*' });
+  assert.equal(star.status, 403, '* does not include loopback');
+  // '*' with the Worker's closed default lets a public target through (fake fetch: no network in tests)
+  const pub = await proxyMcp({ url: 'https://example.com/mcp', method: 'GET' }, { fetch: async () => new Response('{}'), allowTargets: ['*'], allowAnyPublic: false });
+  assert.equal(pub.json.status, 200);
+});
+
+test('AC-SEC-PROXY-08: the local server will not listen beyond loopback without a token', async () => {
+  for (const h of ['127.0.0.1', '127.0.0.2', 'localhost', '::1', '[::1]']) assert.equal(isLoopbackBind(h), true, h);
+  for (const h of ['0.0.0.0', '::', '192.168.1.10']) assert.equal(isLoopbackBind(h), false, h);
+  assert.equal(startupProblem('127.0.0.1', ''), null);
+  assert.match(startupProblem('0.0.0.0', ''), /MCP_TESTER_TOKEN/);
+  assert.match(startupProblem('0.0.0.0', 'short'), /at least 32/);
+  assert.equal(startupProblem('0.0.0.0', 'x'.repeat(32)), null);
+
+  // The real entry point exits instead of starting
+  const child = spawn(process.execPath, [join(ROOT_DIR, 'src/hosts/node-server.js')], {
+    env: { ...process.env, HOST: '0.0.0.0', PORT: '0', MCP_TESTER_TOKEN: '' }, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stderr = '';
+  child.stderr.on('data', (c) => { stderr += c; });
+  const code = await new Promise((r) => child.on('exit', r));
+  assert.equal(code, 1);
+  assert.match(stderr, /needs an access token/);
+});
+
+test('AC-SEC-PROXY-09: with a token, every request needs it', async () => {
+  const token = 't'.repeat(40);
+  const server = createServer({ allowedTargets: '127.0.0.1', allowedHosts: '', token });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const proxy = (headers) => fetch(base + '/proxy', { method: 'POST', body: initPayload(mock.url), headers: { 'Content-Type': 'application/json', ...headers } });
+  try {
+    assert.equal((await fetch(base + '/')).status, 401);
+    assert.equal((await proxy({})).status, 401);
+    assert.equal((await fetch(base + '/oauth/client-metadata.json')).status, 200, 'the authorization server can fetch the metadata document');
+    assert.equal((await fetch(base + '/access?token=wrong', { redirect: 'manual' })).status, 401);
+
+    const link = await fetch(base + '/access?token=' + token, { redirect: 'manual' });
+    assert.equal(link.status, 303);
+    assert.equal(link.headers.get('location'), '/');
+    const setCookie = link.headers.get('set-cookie');
+    assert.match(setCookie, /HttpOnly/);
+    assert.match(setCookie, /SameSite=Lax/);
+    assert.equal(setCookie.includes(token), false, 'the cookie holds an HMAC, not the token');
+    const cookie = setCookie.split(';')[0];
+
+    assert.equal((await fetch(base + '/', { headers: { Cookie: cookie } })).status, 200);
+    assert.equal((await (await proxy({ Cookie: cookie })).json()).status, 200);
+    assert.equal((await (await proxy({ Authorization: 'Bearer ' + token })).json()).status, 200, 'scripts send the token as a Bearer header');
+    assert.equal((await proxy({ Authorization: 'Bearer ' + token + 'x' })).status, 401);
+    assert.equal((await proxy({ Cookie: 'mcp_tester_auth=' + 'a'.repeat(64) })).status, 401);
   } finally {
     await new Promise((r) => { server.closeAllConnections?.(); server.close(r); });
   }
