@@ -5,6 +5,8 @@
   "util.js",
   "transport.js",
   "auth.js",
+  "auth-refresh.js",
+  "auth-ui.js",
   "schema.js",
   "diagnostics.js",
   "views.js",

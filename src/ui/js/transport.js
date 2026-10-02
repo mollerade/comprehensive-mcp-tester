@@ -216,12 +216,19 @@ function handleSendFailure(e, method, source, gen) {
   return { data: { error: { message: e.message } }, status: null, diag: null, clientMs: null, isErr: true, transportOk: false };
 }
 
+/* Headers are built at send time, so a renewed token is picked up */
+function postToServer(body) {
+  return proxyFetch(state.serverUrl, { method: 'POST', headers: requestHeaders(body), body: JSON.stringify(body) });
+}
+
 function sendBody(body, source) {
   var method = body.method || 'raw';
   var gen = state.generation;
   applyModernMeta(body);
   addLog('req', method, { body: body }, null, null, null);
-  return proxyFetch(state.serverUrl, { method: 'POST', headers: requestHeaders(body), body: JSON.stringify(body) })
+  return ensureFreshToken()
+    .then(function() { return postToServer(body); })
+    .then(function(res) { return retryAfterRenewal(res, body, method, gen); })
     .then(function(res) { return handleResponse(res, method, source, gen); })
     .catch(function(e) { return handleSendFailure(e, method, source, gen); });
 }

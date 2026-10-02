@@ -47,4 +47,7 @@ export const STANDARD = [
   { name: 'secure-mixup', alias: '/secure-mixup', protocol: 'legacy', auth: { hint: true, mixup: true },
     description: 'The authorization server redirects back with a wrong iss (mix-up attack)',
     handler: (ctx) => serveLegacy(ctx) },
+  { name: 'custom-credentials', protocol: 'legacy', auth: { hint: true, issuerPath: '/as-custom-credentials', tokenPath: '/token-custom' },
+    description: 'Client credentials with non-standard field names: profileID / secret (bank-profile / bank-secret) at /token-custom',
+    handler: (ctx) => serveLegacy(ctx) },
 ];

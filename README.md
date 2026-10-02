@@ -151,11 +151,13 @@ Browsers can't call most MCP servers directly because the servers don't send COR
 | OAuth sign-in | Follows the MCP authorization spec (2026-07-28). It reads the 401 challenge, fetches the protected resource metadata and the authorization server metadata, and registers the tester. Then it signs you in with PKCE in a pop-up, checks the `iss` in the response, and exchanges the code for a token, sending the `resource` parameter throughout. **Discover only** runs the discovery steps without signing in. |
 | Bearer token | Sends `Authorization: Bearer <token>`. |
 | API key header | Sends a header you name, e.g. `X-API-Key`. |
-| Client credentials | Exchanges a client ID and secret for a token. The token endpoint is discovered unless you enter one. |
+| Client credentials | Exchanges a client ID and secret for a token. The token endpoint is discovered unless you enter one. For token endpoints that want their own field names, **Send the credentials as: Custom field names** sends, say, `profileID` and `secret`, as a form or JSON, with or without `grant_type`, `scope` and `resource`. |
 
 Every sign-in step appears in a trace (ok / warning / failed) and in the Log, because discovery is where servers usually break.
 
 - **Client registration.** A client ID you enter is used first. Otherwise the tester uses a client ID metadata document, which it hosts at `/oauth/client-metadata.json`. That only works on the Worker, because an authorization server can't fetch a document from `localhost`. As a last resort it uses dynamic client registration, which the spec now deprecates.
+- **Token renewal.** A token that expires within a minute is renewed before the next request: with the refresh token after an OAuth sign-in, or with the client credentials again. A 401 to the current token renews it once and resends the request. Each renewal is a trace step and a Log entry; one that fails is not retried, and you sign in again.
+- **Issuer mismatch.** Authorization server metadata whose `issuer` differs from the one the resource names must not be used (RFC 8414 §3.3), so discovery stops. To test the rest of a server that has this bug, turn on **Continue past an issuer mismatch** (off by default): discovery carries on, with a warning in the dialog and the trace. The `iss` in the authorization response is still checked.
 - **Pop-ups.** Sign-in normally happens in a pop-up. If pop-ups are blocked, the page redirects to the sign-in page and picks up where it left off when it comes back. Only the in-flight request is kept (in this tab's `sessionStorage`), and it is deleted as soon as the page returns. A client secret is never kept: if the sign-in needs one, you are asked to enter it again, or you can allow pop-ups.
 
 **Diagnostics.** The health monitor probes the server on an interval and records every call. The timeline uses three states (ok / slow / failed), with the failure kind in tooltips and the breakdown table; the latency chart breaks its line across failures so a lone success between failures still shows.
@@ -188,7 +190,8 @@ The bundled mock server (`npm run mock`) is the example set. Point the tester at
 | `/secure` | OAuth sign-in end to end (for client credentials, use `cc-client` / `cc-secret`) |
 | `/secure-nohint` | A 401 without a `resource_metadata` hint, so discovery probes the well-known URLs |
 | `/secure-mixup` | An authorization server that returns the wrong `iss`, which the tester must reject |
-| `/scenario/<name>/mcp` | Any named scenario, including deliberate spec violations such as `wrong-jsonrpc-version`, `id-mismatch` and `as-no-s256` |
+| `/scenario/custom-credentials/mcp` | Client credentials under custom names: `profileID` / `secret`, with `bank-profile` / `bank-secret` |
+| `/scenario/<name>/mcp` | Any named scenario, including deliberate spec violations such as `wrong-jsonrpc-version`, `id-mismatch`, `as-no-s256` and `as-issuer-mismatch` |
 
 `GET /__scenarios` lists every scenario, and adding `?delay=<ms>` to any request makes it arrive late.
 
@@ -234,7 +237,7 @@ Report vulnerabilities privately through GitHub, as [`SECURITY.md`](SECURITY.md)
 - **Credentials stay in memory.** Auth keeps tokens and secrets in memory only and redacts them from the Log. The one exception is the pop-up fallback's in-flight request, kept in `sessionStorage` until the page returns.
 - **Saved headers are stored in the browser.** The Headers dialog saves its values in `localStorage`. Use Auth for tokens and keys.
 - **A Content-Security-Policy on the page**, from both hosts: it may only talk to its own origin (`connect-src 'self'`), so an injected script could not send tokens elsewhere, and it cannot be framed. The one external origin allowed is Google Fonts, for the stylesheet's fonts.
-- **OAuth checks are enforced, not just reported:** issuer mismatch, the `iss` in the authorization response, `state`, and PKCE S256 support.
+- **OAuth checks are enforced, not just reported:** issuer mismatch, the `iss` in the authorization response, `state`, and PKCE S256 support. The one exception is the opt-in **Continue past an issuer mismatch** switch for testing, which is off by default, warns while on, and still checks `iss`.
 **Resource limits.** Every proxied request has a timeout, clamped to 500 ms to 120 s (default 15 s), and at most 3 retries (default 0). The local server rejects a request body over 1 MB with 413. Diagnostics keep the latest 500 samples and the Log the latest 1000 entries, so a monitor left running for days stays bounded.
 
 **Testing and fuzzing.** The security invariants above are regression-tested: both hosts' origin checks and the local server's host and content-type checks in the hosts suite, the OAuth `iss` mix-up and PKCE end to end against the mock authorization server, and the https-only authorization endpoint in the UI-logic suite. There are no fuzz targets yet; the parsers most worth fuzzing are the SSE and JSON response handling.

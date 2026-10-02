@@ -351,6 +351,9 @@
   .auth-note.warn { color: var(--warning); }
   .auth-opt { font-weight: 400; color: var(--ink-muted); }
   .auth-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .modal label.auth-check { display: block; font-weight: 500; line-height: 1.4; }
+  .modal label.auth-check input { padding: 0; margin: 0 4px 0 0; vertical-align: -2px; accent-color: var(--accent); }
+  .auth-group { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 8px 10px; border-left: 2px solid var(--border); }
   .auth-challenge, .auth-token {
     font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: var(--ink-secondary);
     background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 7px 9px; overflow-wrap: anywhere;

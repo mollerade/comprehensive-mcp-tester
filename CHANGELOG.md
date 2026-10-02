@@ -14,6 +14,10 @@ Releases 0.8.0 to 0.10.0 were not tagged; their dates are those of the commits t
 
 ### Added
 
+- **Token renewal.** A token that expires within a minute is renewed before the next request, with the refresh token after an OAuth sign-in (RFC 6749 §6, with the `resource` indicator) or with the client credentials again; a 401 to the current token renews it once and resends. A renewal that fails is shown and not retried ([#44](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/44)).
+- **Client credentials under custom field names**, for token endpoints that want, for example, `profileID` and `secret`: a form or JSON body, with or without `grant_type`, `scope` and `resource`. The custom secret field is redacted from the Log.
+- **Continue past an issuer mismatch**, an off-by-default testing switch for authorization servers whose metadata `issuer` does not match (RFC 8414 §3.3): discovery carries on with a warning; the authorization response's `iss` is still checked.
+- Mock server: refresh tokens with rotation, `oauth.expireAccessTokens()`, and the `custom-credentials` and `as-issuer-mismatch` scenarios.
 - `npm run test:ci`: every suite with a JUnit report per Node version; CI uploads the reports and lists failing tests by acceptance criterion in the job summary. The e2e suite fails instead of skipping when Chromium is missing and `CI=true`, and every CI job has a timeout of 15 minutes or less ([#6](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/6)).
 - A lint gate: ESLint in CI at zero findings, the client held to ES5 classic scripts, and the complexity ceilings enforced with a baseline of existing offenders that may only shrink. ESLint installs from `tools/lint`, so the project's own install stays Playwright only ([#43](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/43)).
 - A Content-Security-Policy on the page from both hosts: requests only to its own origin, no framing, no rebasing or posting forms elsewhere ([#41](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/41)).

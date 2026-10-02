@@ -24,15 +24,10 @@
     "complexity": {
       "acceptToken": 15,
       "authHeaders": 11,
-      "registerClient": 12,
-      "renderAuthBadge": 12,
-      "renderAuthModal": 32
+      "registerClient": 12
     },
     "max-lines": {
-      "(file)": 658
-    },
-    "sonarjs/cognitive-complexity": {
-      "renderAuthModal": 32
+      "(file)": 544
     }
   },
   "src/ui/js/diagnostics.js": {
