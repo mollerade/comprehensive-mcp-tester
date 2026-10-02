@@ -19,6 +19,7 @@ npm run build     # dist/index.html, dist/worker.js (paste into Cloudflare), dis
 npm start         # local server on http://127.0.0.1:8787
 npm run dev       # same, restarts on core/host changes; UI edits show on reload
 npm run mock      # mock MCP server on http://127.0.0.1:8788/mcp (+ /slow /hang /fail /stream; /scenario/<name>/mcp, GET /__scenarios)
+npm run compliance -- <url> [--header "Name: value"] [--json]   # probe a server and grade it (exit 1 on a failing rule)
 ```
 
 E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`. Without it they skip; they don't fail.
@@ -33,7 +34,7 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 - **Client JS is ES5-style** (`var`, `function`, string concatenation) to match the existing code and run on older iPad Safari. The server-side code (core, hosts, build, tests) is modern ES modules.
 - **The build has zero dependencies** and must keep producing a `dist/worker.js` that pastes into the Cloudflare dashboard editor (Service Worker format, no `import`/`export`). The build self-checks this; don't weaken those checks.
 - **No runtime dependencies.** Playwright is the only devDependency. Adding any package needs a strong reason: corporate users will audit it.
-- **Compliance rules are data graded by a pure engine.** `src/core/compliance/engine.js` selects rules by the server's claimed version (unknown → newest set, marked best effort) and grades recorded exchanges; it never sends anything. A rule is `{ id: 'MCP-<CATEGORY>-<NNN>', title, category, severity: 'fail'|'warn', appliesTo, specRef (https), needsProbe?, check(ctx) }` in `rules/<category>.js`, listed in `catalogue.js`, and cites the spec section it enforces. Every rule needs a mock scenario that breaks it (`tests/fixtures/mock/scenarios/violations.mjs`).
+- **Compliance rules are data graded by a pure engine.** `src/core/compliance/engine.js` selects rules by the server's claimed version (unknown → newest set, marked best effort) and grades recorded exchanges; it never sends anything. A rule is `{ id: 'MCP-<CATEGORY>-<NNN>', title, category, severity: 'fail'|'warn', appliesTo, specRef (https), needsProbe?, check(ctx) }` in `rules/<category>.js`, listed in `catalogue.js`, and cites the spec section it enforces. Every rule needs a mock scenario that breaks it (`tests/fixtures/mock/scenarios/violations.mjs`), listed in the violation table of `tests/compliance/rules.test.js`, which fails on a rule without one. `collect.js` sends the probes (through an injected `send`) and records the exchanges the rules read; rules never send anything. When the server answers 401/403 (or, given headers, once without them), `collect-auth.js` follows authorization discovery into `ctx.auth` (GETs only, never the caller's headers) for the `rules/auth.js` rules. Shared helpers live in `rules/helpers.js`; every top-level name in `src/core/` must be unique, because the Worker build joins the files into one script.
 
 ## Security invariants (tested; keep them)
 

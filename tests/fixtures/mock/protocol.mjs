@@ -65,42 +65,61 @@ function answer(body, tools) {
   return { result: { content: [{ type: 'text', text: 'ok: ' + JSON.stringify(args) }] } };
 }
 
-/** The answer to any request method, as { result } or { error }. `o.listTools` may be async. */
-async function resultFor(body, o) {
-  const tools = o.tools || TOOLS;
-  switch (body.method) {
-    case 'tools/list': return { result: { tools: o.listTools ? await o.listTools() : tools } };
-    case 'resources/list': return { result: { resources: RESOURCES } };
-    case 'prompts/list': return { result: { prompts: PROMPTS } };
-    case 'tools/call': case 'resources/read': case 'prompts/get': return answer(body, tools);
-    default: return { error: { code: -32601, message: 'Method not found' } };
-  }
+/**
+ * tools/list, paged when o.pageSize is set: the cursor is the next offset as a string.
+ * o.cursorLoop hands back the first page's cursor forever, a real-world paging bug.
+ */
+async function toolsPage(body, o) {
+  const all = o.listTools ? await o.listTools() : (o.tools || TOOLS);
+  if (!o.pageSize) return { tools: all };
+  const start = Number((body.params || {}).cursor || 0);
+  const page = { tools: all.slice(start, start + o.pageSize) };
+  if (start + o.pageSize < all.length) page.nextCursor = o.cursorLoop ? String(o.pageSize) : String(start + o.pageSize);
+  return page;
 }
 
-function hasSession(ctx) {
+const NOT_FOUND = { error: { code: -32601, message: 'Method not found' } };
+const ANSWERS = {
+  'tools/list': async (body, o) => ({ result: await toolsPage(body, o) }),
+  'resources/list': (body, o) => ({ result: { resources: o.resources || RESOURCES } }),
+  'prompts/list': (body, o) => (o.noPrompts ? NOT_FOUND : { result: { prompts: o.prompts || PROMPTS } }),
+  'tools/call': (body, o) => answer(body, o.tools || TOOLS),
+  'resources/read': (body, o) => answer(body, o.tools || TOOLS),
+  'prompts/get': (body, o) => answer(body, o.tools || TOOLS),
+};
+
+/** The answer to any request method, as { result } or { error }. `o.listTools` may be async. */
+async function resultFor(body, o) {
+  const handler = Object.hasOwn(ANSWERS, body.method) ? ANSWERS[body.method] : null;
+  return handler ? handler(body, o) : NOT_FOUND;
+}
+
+/** Streamable HTTP: no session id is 400; one the server does not know (expired, terminated) is 404 */
+function sessionRejection(ctx) {
   const sid = ctx.req.headers['mcp-session-id'];
-  return !!sid && ctx.sessions.has(sid);
+  if (!sid) return [400, rpcErr(null, -32000, 'Bad Request: No valid session ID provided')];
+  if (!ctx.sessions.has(sid)) return [404, rpcErr(null, -32001, 'Session not found')];
+  return null;
 }
 
 /**
  * Legacy era (2025-11-25 and earlier): initialize issues an mcp-session-id that
  * every later request must carry (400 otherwise); notifications get 202 and no body.
- * Options: tools, listTools, streamCalls, ignoreSession, notificationBody.
+ * Options: tools, listTools, streamCalls, ignoreSession, notificationBody, pageSize,
+ * cursorLoop, resources, prompts, noPrompts, initResult (rewrites the initialize result).
  */
+function legacyInitialize(ctx, o) {
+  const sid = randomUUID();
+  ctx.sessions.add(sid);
+  const result = { protocolVersion: '2025-03-26', serverInfo: SERVER_INFO, capabilities: { tools: {}, resources: {}, prompts: {} } };
+  return ctx.reply(200, rpcOk(ctx.body.id, o.initResult ? o.initResult(result) : result), { 'mcp-session-id': sid });
+}
+
 export async function serveLegacy(ctx, o = {}) {
   const { body } = ctx;
-  if (body.method === 'initialize') {
-    const sid = randomUUID();
-    ctx.sessions.add(sid);
-    return ctx.reply(200, rpcOk(body.id, {
-      protocolVersion: '2025-03-26',
-      serverInfo: SERVER_INFO,
-      capabilities: { tools: {}, resources: {}, prompts: {} },
-    }), { 'mcp-session-id': sid });
-  }
-  if (!o.ignoreSession && !hasSession(ctx)) {
-    return ctx.reply(400, rpcErr(null, -32000, 'Bad Request: No valid session ID provided'));
-  }
+  if (body.method === 'initialize') return legacyInitialize(ctx, o);
+  const rejected = !o.ignoreSession && sessionRejection(ctx);
+  if (rejected) return ctx.reply(rejected[0], rejected[1]);
   if (body.id === undefined) return o.notificationBody ? ctx.reply(200, rpcOk(null, {})) : ctx.reply(202, undefined);
 
   const r = await resultFor(body, o);
@@ -139,8 +158,8 @@ function headerMismatch(headers, body) {
 
 export const modernVersionOf = (body) => ((body.params || {})._meta || {})[META + 'protocolVersion'];
 
-/** Rejections a modern server makes before looking at the method, or null */
-function modernRejection(ctx, supported) {
+/** Rejections a modern server makes before looking at the method, or null. o.ignoreHeaders / o.anyVersion bend them. */
+function modernRejection(ctx, supported, o) {
   const { body } = ctx;
   const version = modernVersionOf(body);
   if (body.method === 'initialize') {
@@ -148,9 +167,9 @@ function modernRejection(ctx, supported) {
       { supported: [MODERN_VERSION], requested: (body.params || {}).protocolVersion })];
   }
   if (!version) return [400, rpcErr(body.id, -32020, 'Missing io.modelcontextprotocol/protocolVersion in _meta')];
-  const mismatch = headerMismatch(ctx.req.headers, body);
+  const mismatch = !o.ignoreHeaders && headerMismatch(ctx.req.headers, body);
   if (mismatch) return [400, rpcErr(body.id, -32020, 'Header mismatch: ' + mismatch)];
-  if (version !== MODERN_VERSION) return [400, rpcErr(body.id, -32022, 'Unsupported protocol version', { supported, requested: version })];
+  if (version !== MODERN_VERSION && !o.anyVersion) return [400, rpcErr(body.id, -32022, 'Unsupported protocol version', { supported, requested: version })];
   return null;
 }
 
@@ -158,12 +177,13 @@ function modernRejection(ctx, supported) {
  * 2026-07-28 era: stateless. Version, identity and capabilities ride in every
  * request's _meta and must match the mirrored headers (400 -32020); another
  * version is 400 -32022 with the supported list; an unknown method is 404 -32601.
- * Options: supported (versions), unknownMethodStatus.
+ * Options: supported (versions), unknownMethodStatus, ignoreHeaders, anyVersion, and those of
+ * resultFor (tools, listTools, pageSize, cursorLoop, ...).
  */
 export async function serveModern(ctx, o = {}) {
   const { body } = ctx;
   const supported = o.supported || [MODERN_VERSION];
-  const rejected = modernRejection(ctx, supported);
+  const rejected = modernRejection(ctx, supported, o);
   if (rejected) return ctx.reply(rejected[0], rejected[1]);
   if (body.id === undefined) return ctx.reply(202, undefined);
 

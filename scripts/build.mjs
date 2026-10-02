@@ -56,7 +56,10 @@ export function platformViolations(dir) {
 /** Core sources concatenated into the Worker, dependencies first */
 const CORE_FILES = [
   'src/core/target-policy.js', 'src/core/proxy.js', 'src/core/oauth-client.js', 'src/core/security-headers.js',
-  'src/core/compliance/rules/version.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
+  'src/core/compliance/rules/version.js', 'src/core/compliance/collect-auth.js', 'src/core/compliance/collect.js', 'src/core/compliance/rules/helpers.js',
+  'src/core/compliance/rules/json-schema.js', 'src/core/compliance/rules/jsonrpc.js', 'src/core/compliance/rules/transport.js',
+  'src/core/compliance/rules/lifecycle.js', 'src/core/compliance/rules/results.js', 'src/core/compliance/rules/tools.js',
+  'src/core/compliance/rules/resources.js', 'src/core/compliance/rules/auth.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
 ];
 
 /** Embed arbitrary text as a JS template literal. */
