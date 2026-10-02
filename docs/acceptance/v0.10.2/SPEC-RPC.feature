@@ -34,7 +34,8 @@ Feature: Compliance rules for JSON-RPC, transport and lifecycle, in both eras
   Scenario: Extra headers are sent but never recorded
     Given an extra header such as an API key
     When the collector probes the server
-    Then every probe carries it, and the recording does not contain it
+    Then every probe carries it, except the one handshake sent without it to look for an authorization challenge
+    And the recording does not contain it
 
   @AC-SPEC-RPC-06 @suite:compliance
   Scenario: The check runs from the command line

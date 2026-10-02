@@ -65,24 +65,33 @@ const FALLBACK = SCENARIOS.find((s) => s.name === 'mcp');   // any other path be
 /** The issuer an AS's metadata claims: its URL, or (issuerMismatch) the URL plus a trailing slash, a real-world bug */
 const claimedIssuer = (base, issuerPath, auth) => base + issuerPath + (auth && auth.issuerMismatch ? '/' : '');
 
+/**
+ * RFC 8414 metadata. A scenario's `auth` bends one thing: issuerMismatch, tokenPath,
+ * pkceMethods, insecureEndpoint (an http authorization endpoint off loopback),
+ * noRegistration (neither CIMD nor DCR), noIss (no RFC 9207 iss support).
+ */
 function asMetadata(base, issuerPath = '', auth = null) {
-  return {
-    issuer: claimedIssuer(base, issuerPath, auth), authorization_endpoint: base + '/authorize',
-    token_endpoint: base + ((auth && auth.tokenPath) || '/token'),
-    registration_endpoint: base + '/register', response_types_supported: ['code'],
+  const a = auth || {};
+  const doc = {
+    issuer: claimedIssuer(base, issuerPath, auth),
+    authorization_endpoint: a.insecureEndpoint ? 'http://as.example.com/authorize' : base + '/authorize',
+    token_endpoint: base + (a.tokenPath || '/token'),
+    registration_endpoint: base + '/register', client_id_metadata_document_supported: true, response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'],
-    code_challenge_methods_supported: (auth && auth.pkceMethods) || ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'],
-    authorization_response_iss_parameter_supported: true, scopes_supported: ['mcp:read', 'mcp:write'],
+    code_challenge_methods_supported: a.pkceMethods || ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'],
+    authorization_response_iss_parameter_supported: !a.noIss, scopes_supported: ['mcp:read', 'mcp:write'],
   };
+  if (a.noRegistration) { delete doc.registration_endpoint; delete doc.client_id_metadata_document_supported; }
+  return doc;
 }
 
 const authOfPath = (path) => { const hit = resolveScenario(path); return (hit && hit.scenario && hit.scenario.auth) || null; };
 
-/** RFC 9728 protected resource metadata for an auth scenario's path */
+/** RFC 9728 protected resource metadata for an auth scenario's path; auth.noPrm hides it, auth.prmResource bends its resource */
 function serveResourceMetadata(res, base, resourcePath) {
   const auth = authOfPath(resourcePath);
-  if (!auth) return reply(res, 404, { error: 'not_found' });
-  reply(res, 200, { resource: base + resourcePath, authorization_servers: [base + (auth.issuerPath || '')],
+  if (!auth || auth.noPrm) return reply(res, 404, { error: 'not_found' });
+  reply(res, 200, { resource: auth.prmResource || base + resourcePath, authorization_servers: [base + (auth.issuerPath || '')],
     scopes_supported: ['mcp:read', 'mcp:write'], bearer_methods_supported: ['header'] });
 }
 
@@ -222,6 +231,7 @@ function authChallenge(req, res, oauth, path, base, auth) {
   const m = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || '');
   const grant = m && oauth.tokens.get(m[1]);
   if (grant && grant.resource === base + path) return false;
+  if (auth.noChallenge) { reply(res, 401, rpcErr(null, -32001, 'Unauthorized')); return true; }
   const challenge = auth.hint === false ? 'Bearer realm="mock"'
     : `Bearer resource_metadata="${base}${PRM_PREFIX}${path}", scope="mcp:read"` + (m ? ', error="invalid_token"' : '');
   reply(res, 401, rpcErr(null, -32001, 'Unauthorized'), { 'WWW-Authenticate': challenge });

@@ -8,8 +8,11 @@
  *
  * The probes go through the same proxy core and checked fetch as the local
  * server; the target's own origin is listed, so a local or internal server can
- * be graded, but a redirect elsewhere is still checked. Prints a Markdown
- * report (or the report as JSON). Exit code: 0 pass or warn, 1 fail or no answer, 2 usage.
+ * be graded, and public hosts are allowed for the authorization server; any
+ * other special-purpose address, and every redirect hop, is still checked. Prints a Markdown
+ * report (or the report as JSON). Exit code: 0 pass or warn, 1 a failing rule or
+ * nothing graded at all, 2 usage. A server that asks for a sign-in has its
+ * authorization discovery graded; --header with a token grades the rest.
  * Headers are sent to the target only, and never printed.
  */
 import { proxyMcp } from '../src/core/proxy.js';
@@ -43,8 +46,8 @@ export function parseArgs(argv) {
 /** The collector's send(), over the proxy core */
 export function proxySend(allowTargets, doFetch) {
   return async function (url, init) {
-    const r = await proxyMcp({ url, method: init.method, headers: init.headers, body: init.body, timeoutMs: 15000 },
-      { fetch: doFetch, allowTargets, allowAnyPublic: false, colo: 'cli' });
+    const r = await proxyMcp({ url, method: init.method, headers: init.headers, body: init.body, purpose: init.purpose, timeoutMs: 15000 },
+      { fetch: doFetch, allowTargets, allowAnyPublic: true, colo: 'cli' });
     if (r.status !== 200) return { error: r.json.error + (r.json.hint ? ' ' + r.json.hint : '') };
     if (r.json.status === 0) return { error: r.json.diag.errorDetail };
     return { status: r.json.status, headers: r.json.headers, body: r.json.body };
@@ -53,14 +56,22 @@ export function proxySend(allowTargets, doFetch) {
 
 const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 
+/** Something was graded: the protocol (a handshake worked) or at least the authorization discovery */
+const graded = (ctx) => !!(ctx.era || ctx.auth);
+
+function notGradedLine(ctx) {
+  const why = cell(ctx.handshakeError);
+  if (ctx.auth) return '- **Only authorization was graded**: the server asks for a sign-in (' + why + '). Grade the rest with --header "Authorization: Bearer <token>".';
+  return '- **No handshake succeeded**, so the server was not graded: ' + why + '. A server that needs a sign-in can be graded with --header "Authorization: Bearer <token>".';
+}
+
 export function markdownReport(url, ctx, report) {
   const lines = [
     '# MCP compliance: ' + url, '',
     '- Era: ' + (ctx.era || 'unknown') + ', claimed version: ' + (report.claimedVersion || 'none') +
       ', graded against ' + report.version + (report.bestEffort ? ' (best effort)' : ''),
-    ...(ctx.era ? [] : ['- **No handshake succeeded**, so the server was not graded: ' + cell(ctx.handshakeError) +
-      '. A server that needs a sign-in can be graded with --header "Authorization: Bearer <token>".']),
-    '- Verdict: **' + (ctx.era ? report.verdict : 'not graded') + '** (' + Object.keys(report.counts).filter((k) => report.counts[k]).map((k) => report.counts[k] + ' ' + k).join(', ') + ')',
+    ...(ctx.era ? [] : [notGradedLine(ctx)]),
+    '- Verdict: **' + (graded(ctx) ? report.verdict : 'not graded') + '** (' + Object.keys(report.counts).filter((k) => report.counts[k]).map((k) => report.counts[k] + ' ' + k).join(', ') + ')',
     '', '| Result | Rule | Check | Detail |', '| :--- | :--- | :--- | :--- |',
   ];
   for (const r of report.results) {
@@ -77,7 +88,7 @@ async function main(argv) {
   const ctx = await collectCompliance({ url: args.url, headers: args.headers, send: proxySend(allow, createGuardedFetch({ allow })) });
   const report = runCompliance(COMPLIANCE_CATALOGUE, ctx);
   process.stdout.write(args.json ? JSON.stringify({ url: args.url, era: ctx.era, ...report }, null, 2) + '\n' : markdownReport(args.url, ctx, report));
-  process.exitCode = report.verdict === 'fail' || !ctx.era ? 1 : 0;
+  process.exitCode = report.verdict === 'fail' || !graded(ctx) ? 1 : 0;
 }
 
 if (isMain(import.meta.url)) main(process.argv.slice(2));

@@ -62,6 +62,18 @@ const FEATURE_VIOLATIONS = [
   ['MCP-PAGE-001', 'cursor-loop', ['MCP-PAGE-001:fail', 'MCP-TOOL-002:warn']],   // the repeated page repeats tool names
 ];
 
+const AUTH_VIOLATIONS = [
+  ['MCP-AUTH-001', 'auth-no-challenge', ['MCP-AUTH-001:fail', 'MCP-AUTH-002:warn']],   // no header, so no resource_metadata either
+  ['MCP-AUTH-002', 'secure-nohint', ['MCP-AUTH-002:warn']],
+  ['MCP-AUTH-003', 'auth-no-prm', ['MCP-AUTH-003:fail']],
+  ['MCP-AUTH-004', 'auth-prm-wrong-resource', ['MCP-AUTH-004:warn']],
+  ['MCP-AUTH-005', 'as-issuer-mismatch', ['MCP-AUTH-005:fail']],
+  ['MCP-AUTH-006', 'as-no-s256', ['MCP-AUTH-006:fail']],
+  ['MCP-AUTH-007', 'as-insecure-endpoint', ['MCP-AUTH-007:fail']],
+  ['MCP-AUTH-008', 'as-no-registration', ['MCP-AUTH-008:warn']],
+  ['MCP-AUTH-009', 'as-no-iss', ['MCP-AUTH-009:warn']],
+];
+
 async function assertViolations(table) {
   for (const [rule, name, expected] of table) {
     const { report } = await grade(scenario(name));
@@ -111,7 +123,7 @@ test('AC-SPEC-RPC-04: a server that is unreachable or refuses the handshake is n
   assert.equal(refused.ctx.era, null);
   assert.match(refused.ctx.handshakeError, /server\/discover: HTTP 401.*initialize: HTTP 401/);
   assert.deepEqual(refused.report.results.filter((r) => ['fail', 'error'].includes(r.status)), []);
-  assert.match(markdownReport('x', refused.ctx, refused.report), /No handshake succeeded.*--header "Authorization: Bearer/);
+  assert.match(markdownReport('x', refused.ctx, refused.report), /Only authorization was graded.*--header "Authorization: Bearer/);
   // ...and with a token it is graded like any other server
   const token = 'at-test';
   mock.oauth.tokens.set(token, { resource: mock.base + '/secure', scope: 'mcp:read' });
@@ -123,7 +135,10 @@ test('AC-SPEC-RPC-04: a server that is unreachable or refuses the handshake is n
 test('AC-SPEC-RPC-05: extra headers reach the server and are never recorded', async () => {
   const before = mock.calls.length;
   const { ctx } = await grade('/mcp', { headers: { 'x-api-key': 'k-secret' } });
-  assert.ok(mock.calls.slice(before).every((c) => c.headers['x-api-key'] === 'k-secret'));
+  const calls = mock.calls.slice(before);
+  const bare = calls.filter((c) => c.headers['x-api-key'] === undefined);
+  assert.deepEqual(bare.map((c) => c.body.method), ['initialize'], 'only the one handshake that looks for a challenge goes without them');
+  assert.ok(calls.filter((c) => !bare.includes(c)).every((c) => c.headers['x-api-key'] === 'k-secret'));
   assert.equal(JSON.stringify(ctx).includes('k-secret'), false);
 });
 
@@ -154,7 +169,7 @@ test('AC-SPEC-TOOLS-01: each capability, tools, resources, prompts and paging ru
 });
 
 test('AC-SPEC-TOOLS-02: every rule in the catalogue has a scenario that breaks it', () => {
-  const covered = new Set([...PROTOCOL_VIOLATIONS, ...FEATURE_VIOLATIONS].map((v) => v[0]));
+  const covered = new Set([...PROTOCOL_VIOLATIONS, ...FEATURE_VIOLATIONS, ...AUTH_VIOLATIONS].map((v) => v[0]));
   for (const r of COMPLIANCE_CATALOGUE) {
     if (r.id === 'MCP-VER-001') continue;   // graded from the claimed version alone (AC-SPEC-ENGINE-03)
     assert.ok(covered.has(r.id), r.id + ' has no violation scenario');
@@ -180,4 +195,63 @@ test('AC-SPEC-TOOLS-04: event-stream responses and the Markdown report', async (
   assert.match(md, /Verdict: \*\*fail\*\*/);
   assert.match(md, /\| FAIL \| \[MCP-RPC-002\]\(https:\/\/modelcontextprotocol\.io\//);
   assert.equal(md.includes('| n/a |'), false, 'rules that do not apply are left out');
+});
+
+// ── Authorization (#12) ──
+
+const authResults = (report) => report.results.filter((r) => r.category === 'auth');
+
+test('AC-SPEC-AUTH-01: a correctly protected server passes every authorization rule', async () => {
+  const { ctx, report } = await grade('/secure');
+  assert.equal(ctx.era, null, 'not signed in, so no handshake');
+  assert.equal(ctx.auth.challenge.status, 401);
+  assert.deepEqual(authResults(report).map((r) => r.status), Array(9).fill('pass'));
+  assert.deepEqual(flagged(report), []);
+  const md = markdownReport(mock.base + '/secure', ctx, report);
+  assert.match(md, /Only authorization was graded/);
+  assert.match(md, /Verdict: \*\*pass\*\*/);
+  assert.equal((await cli(mock.base + '/secure')).status, 0, 'a passing partial grade exits 0');
+});
+
+test('AC-SPEC-AUTH-02: each authorization rule is broken by its scenario', async () => {
+  await assertViolations(AUTH_VIOLATIONS);
+  const { report } = await grade(scenario('as-issuer-mismatch'));
+  const r = report.results.find((x) => x.id === 'MCP-AUTH-005');
+  assert.match(r.message, /issuer ".*\/as-issuer-mismatch\/", but the resource names ".*\/as-issuer-mismatch"/, 'names both issuers');
+});
+
+test('AC-SPEC-AUTH-03: discovery runs only when the server asks, and never with the caller\'s headers', async () => {
+  assert.equal((await grade('/mcp')).ctx.auth, undefined, 'an open server is not asked about authorization');
+  assert.ok(authResults((await grade('/mcp')).report).every((r) => ['skipped', 'not-applicable'].includes(r.status)));
+
+  const token = 'at-auth03';
+  mock.oauth.tokens.set(token, { resource: mock.base + '/secure', scope: 'mcp:read' });
+  const { ctx } = await grade('/secure', { headers: { authorization: 'Bearer ' + token } });
+  assert.equal(ctx.era, 'legacy', 'signed in, the protocol is graded');
+  const probe = ctx.exchanges.find((e) => e.label === 'unauthenticated');
+  assert.equal(probe.status, 401, 'one handshake without the token finds the challenge');
+  assert.ok(ctx.auth.as.found, 'and discovery follows it');
+});
+
+test('AC-SPEC-AUTH-04: discovery follows the spec order and sends no credentials', async () => {
+  const calls = [];
+  const fakeSend = async (url, init) => { calls.push({ url, init }); return { status: 404, headers: {}, body: '' }; };
+  const ctx = await collectCompliance({
+    url: 'https://mcp.example/api/mcp', headers: { authorization: 'Bearer secret' },
+    send: async (url, init) => (init.method === 'POST'
+      ? { status: 401, headers: { 'www-authenticate': 'Bearer resource_metadata="https://mcp.example/prm"' }, body: '' }
+      : fakeSend(url, init)),
+  });
+  assert.deepEqual(calls.map((c) => c.url), [
+    'https://mcp.example/prm',
+    'https://mcp.example/.well-known/oauth-protected-resource/api/mcp',
+    'https://mcp.example/.well-known/oauth-protected-resource',
+  ]);
+  for (const c of calls) {
+    assert.equal(c.init.method, 'GET');
+    assert.equal(JSON.stringify(c.init.headers).includes('secret'), false, 'no credentials on discovery');
+  }
+  assert.equal(ctx.auth.prm.found, null);
+  const r = runCompliance(COMPLIANCE_CATALOGUE, ctx).results.find((x) => x.id === 'MCP-AUTH-003');
+  assert.match(r.message, /no protected resource metadata at: https:\/\/mcp\.example\/prm → HTTP 404/);
 });

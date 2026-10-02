@@ -19,6 +19,8 @@
  * Nothing calls a tool, reads a resource or gets a prompt.
  */
 
+import { collectAuth } from './collect-auth.js';
+
 export const COMPLIANCE_MODERN_VERSION = '2026-07-28';
 export const COMPLIANCE_LEGACY_VERSION = '2025-11-25';
 export const COMPLIANCE_META = 'io.modelcontextprotocol/';
@@ -76,7 +78,9 @@ function complianceRecorder(url, send, extraHeaders) {
   const rec = { exchanges: [], sessionId: null, era: null, version: null, nextId: 1 };
 
   rec.send = async function (label, body, headers) {
-    const all = Object.assign({ 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, extraHeaders, headers);
+    const extra = rec.bareNext ? {} : extraHeaders;   // bareNext: one probe without the caller's headers (e.g. no Authorization)
+    rec.bareNext = false;
+    const all = Object.assign({ 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, extra, headers);
     const exchange = { label, method: body.method, request: { headers: headers || {}, body } };
     let res;
     try { res = await send(url, { method: 'POST', headers: all, body: JSON.stringify(body) }); }
@@ -195,9 +199,28 @@ function handshakeFailure(exchanges) {
   }).join('; ');
 }
 
+const ccIsChallenge = (e) => !!e && !e.transportError && (e.status === 401 || e.status === 403);
+
+/**
+ * The exchange that asked for authorization: a handshake answered 401/403, or, when
+ * the check was given headers (a token) and the handshake worked, the same handshake
+ * sent once without them. null when the server does not ask for authorization.
+ */
+async function authChallengeExchange(rec, headers, era) {
+  const refused = rec.exchanges.find((e) => (e.label === 'discover' || e.label === 'initialize') && ccIsChallenge(e));
+  if (refused) return refused;
+  if (!era || !Object.keys(headers).length) return null;
+  rec.bareNext = true;
+  const probe = era === 'modern'
+    ? await sendModern(rec, 'unauthenticated', 'server/discover', {})
+    : await rec.send('unauthenticated', rec.request('initialize', { protocolVersion: COMPLIANCE_LEGACY_VERSION, capabilities: {}, clientInfo: COMPLIANCE_CLIENT }), {});
+  return ccIsChallenge(probe) ? probe : null;
+}
+
 /**
  * Probe the server and return the engine's ctx:
- * { url, era, claimedVersion, capabilities, probed: true, exchanges, handshakeError? }.
+ * { url, era, claimedVersion, capabilities, probed: true, exchanges, handshakeError?, auth? }.
+ * auth is the authorization discovery (collect-auth.js), present when the server asked for it.
  * era is null, and handshakeError says why, when neither handshake succeeded:
  * the server needs a sign-in (401/403), is not an MCP server, or cannot be reached.
  * The stateless era is tried first (server/discover); any HTTP error falls back
@@ -221,5 +244,7 @@ export async function collectCompliance(opts) {
   }
   const ctx = { url: opts.url, era: found.era, claimedVersion: found.claimedVersion, capabilities: found.capabilities, probed: true, exchanges: rec.exchanges };
   if (!found.era) ctx.handshakeError = handshakeFailure(rec.exchanges);
+  const challenge = await authChallengeExchange(rec, opts.headers || {}, found.era);
+  if (challenge) ctx.auth = await collectAuth(opts.send, opts.url, challenge);
   return ctx;
 }

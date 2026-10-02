@@ -9,5 +9,6 @@ import { LIFECYCLE_RULES } from './rules/lifecycle.js';
 import { RESULT_RULES } from './rules/results.js';
 import { TOOL_RULES } from './rules/tools.js';
 import { RESOURCE_RULES } from './rules/resources.js';
+import { AUTH_RULES } from './rules/auth.js';
 
-export const COMPLIANCE_CATALOGUE = [].concat(VERSION_RULES, JSONRPC_RULES, TRANSPORT_RULES, LIFECYCLE_RULES, RESULT_RULES, TOOL_RULES, RESOURCE_RULES);
+export const COMPLIANCE_CATALOGUE = [].concat(VERSION_RULES, JSONRPC_RULES, TRANSPORT_RULES, LIFECYCLE_RULES, RESULT_RULES, TOOL_RULES, RESOURCE_RULES, AUTH_RULES);

@@ -15,6 +15,7 @@ export const VERSION_RULES = [
     specRef: 'https://modelcontextprotocol.io/specification/versioning',
     check: function (ctx) {
       if (KNOWN_PROTOCOL_VERSIONS.indexOf(ctx.claimedVersion) !== -1) return { ok: true };
+      if (ctx.handshakeError) return { skip: 'no handshake succeeded, so no version was claimed' };
       return { ok: false, message: 'unknown protocol version: ' + (ctx.claimedVersion || '(none claimed)') };
     },
   },
