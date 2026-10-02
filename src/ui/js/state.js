@@ -6,7 +6,9 @@ var state = {
   tools: [], resources: [], prompts: [], log: [],
   activeTab: 'tools', expandedItem: null,
   servers: [], activeServerId: null, serverInfo: null,
-  drafts: {}, filters: { tools: '', resources: '', prompts: '' }
+  drafts: {}, filters: { tools: '', resources: '', prompts: '' },
+  // Compliance tab: the last report ({ summary, report, markdown, target, at }) and the run in flight
+  compliance: { running: false, controller: null, target: null, startedAt: null, result: null, error: null, showQuiet: false }
 };
 
 var diag = {
