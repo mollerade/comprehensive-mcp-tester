@@ -373,6 +373,22 @@
   .trace-step.fail .trace-dot { background: var(--st-fail); }
   .trace-detail { color: var(--ink-secondary); line-height: 1.45; margin-top: 2px; overflow-wrap: anywhere; }
   .trace-url { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .trace-step.info { opacity: 0.8; }
+  .cmp { display: flex; flex-direction: column; gap: 10px; padding: 12px; max-width: 900px; }
+  .cmp-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .cmp-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .cmp-title b { font-size: 14px; color: var(--ink); }
+  .cmp-target { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); overflow-wrap: anywhere; }
+  .cmp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cmp-summary b { font-size: 13px; }
+  .cmp-counts { margin-left: auto; font-size: 11px; color: var(--ink-secondary); }
+  .cmp-caveat { color: var(--warning); }
+  .cmp-rule { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .cmp-rule:hover { text-decoration: underline; }
+  .cmp-evidence { margin-top: 4px; }
+  .cmp-evidence summary { cursor: pointer; font-size: 11px; color: var(--ink-secondary); }
+  .cmp-evidence pre { margin: 4px 0 0; padding: 6px 8px; background: var(--surface-sunken); border-radius: var(--radius-sm);
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-secondary); white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
   .proxy-badge {
     display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
     border-radius: 4px; font-size: 10px; font-weight: 600;

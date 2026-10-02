@@ -31,6 +31,7 @@ import { pathToFileURL } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
+import { runComplianceCheck } from '../core/compliance/run.js';
 import { parseTargetList } from '../core/target-policy.js';
 import { createGuardedFetch } from './guarded-fetch.js';
 import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
@@ -164,8 +165,8 @@ function serverConfig(opts) {
   };
 }
 
-/** POST /proxy: same-origin JSON only, then proxyMcp() */
-async function handleProxy(req, res, hostHeader, proxyEnv) {
+/** POST /proxy and POST /compliance: same-origin JSON only, then run(payload) → { status, json } */
+async function handleJsonPost(req, res, hostHeader, run) {
   const origin = req.headers.origin;
   if (origin && origin !== 'http://' + hostHeader && origin !== 'https://' + hostHeader) {
     return sendJson(res, 403, { error: 'Cross-origin requests to the local proxy are not allowed' });
@@ -186,8 +187,16 @@ async function handleProxy(req, res, hostHeader, proxyEnv) {
   let payload;
   try { payload = JSON.parse(raw); }
   catch { return sendJson(res, 400, { error: 'Invalid JSON in proxy request body' }); }
-  const result = await proxyMcp(payload, proxyEnv);
+  const result = await run(payload);
+  if (res.destroyed) return undefined;   // the caller went away (a cancelled compliance check)
   return sendJson(res, result.status, result.json);
+}
+
+/** A compliance check stops sending probes once the browser drops the request (Cancel) */
+function runComplianceFor(req, res, proxyEnv) {
+  const controller = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+  return (payload) => runComplianceCheck(payload, { ...proxyEnv, signal: controller.signal });
 }
 
 /**
@@ -200,6 +209,12 @@ async function handleProxy(req, res, hostHeader, proxyEnv) {
  */
 export function createServer(opts = {}) {
   const { allowTargets, extraHosts, token, doFetch } = serverConfig(opts);
+  const proxyEnv = { fetch: doFetch, allowTargets, allowAnyPublic: true, colo: 'local' };
+  // POST routes: (req, res) → run(payload) → { status, json }; a Map, so no path reaches Object.prototype
+  const postRoutes = new Map([
+    ['/proxy', () => (payload) => proxyMcp(payload, proxyEnv)],
+    ['/compliance', (req, res) => runComplianceFor(req, res, proxyEnv)],
+  ]);
 
   const hostAllowed = (hostHeader) => {
     if (!hostHeader) return false;
@@ -226,9 +241,8 @@ export function createServer(opts = {}) {
         return sendJson(res, 200, clientMetadataDocument('http://' + hostHeader));
       }
 
-      if (req.method === 'POST' && url.pathname === '/proxy') {
-        return await handleProxy(req, res, hostHeader, { fetch: doFetch, allowTargets, allowAnyPublic: true, colo: 'local' });
-      }
+      const post = req.method === 'POST' && postRoutes.get(url.pathname);
+      if (post) return await handleJsonPost(req, res, hostHeader, post(req, res));
 
       // No CORS grants: preflights from other origins get no Access-Control headers and fail
       if (req.method === 'OPTIONS') return send(res, 204, {}, '');

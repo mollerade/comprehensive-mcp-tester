@@ -60,6 +60,7 @@ const CORE_FILES = [
   'src/core/compliance/rules/json-schema.js', 'src/core/compliance/rules/jsonrpc.js', 'src/core/compliance/rules/transport.js',
   'src/core/compliance/rules/lifecycle.js', 'src/core/compliance/rules/results.js', 'src/core/compliance/rules/tools.js',
   'src/core/compliance/rules/resources.js', 'src/core/compliance/rules/auth.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
+  'src/core/compliance/report.js', 'src/core/compliance/run.js',
 ];
 
 /** Embed arbitrary text as a JS template literal. */
