@@ -4,7 +4,7 @@
 
 Please report security problems privately, never in a public issue or pull request.
 
-Use GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability** ([direct link](https://github.com/sebastienrousseau/comprehensive-mcp-tester/security/advisories/new)). Only the maintainers can see the report.
+Use GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability** ([direct link](https://github.com/mollerade/comprehensive-mcp-tester/security/advisories/new)). Only the maintainers can see the report. Reports go to the author's repository, [mollerade/comprehensive-mcp-tester](https://github.com/mollerade/comprehensive-mcp-tester), whichever copy you found the problem in, so there is one place to coordinate a fix.
 
 Please include what an attacker can do, the steps to reproduce it (a mock server scenario is ideal), and which host is affected: the Cloudflare Worker, the local Node server, or both.
 
