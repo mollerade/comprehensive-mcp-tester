@@ -190,3 +190,73 @@ test('AC-AUTH-ISSUER-OVERRIDE-02: with the switch on, discovery continues with a
   await resetAuth();
 });
 
+
+// ── Compliance tab (#13) ──
+async function runCheck(url) {
+  await h.page.click('.tab-btn[data-tab="compliance"]');
+  await h.page.fill('#urlInput', url);
+  await h.page.click('#complianceRun');
+  await h.page.waitForFunction(() => !window.state.compliance.running, null, { timeout: 20000 });
+}
+
+test('AC-SPEC-REPORT-04: the Compliance tab runs the check and shows the verdict and findings', { skip: h.skip }, async () => {
+  await resetAuth();
+  await runCheck(h.mock.url);
+  assert.equal(await h.page.textContent('#complianceVerdict'), 'Pass');
+  assert.equal(await h.page.isVisible('#complianceBadge'), true);
+  assert.equal(await h.page.textContent('#complianceBadge'), '0');
+
+  await runCheck(h.mock.base + '/scenario/id-mismatch/mcp');
+  assert.equal(await h.page.textContent('#complianceVerdict'), 'Fail');
+  const row = h.page.locator('#complianceResults li[data-rule="MCP-RPC-002"]');
+  assert.equal(await row.getAttribute('data-status'), 'fail');
+  assert.match(await row.textContent(), /does not match request id/);
+  assert.match(await row.locator('a.cmp-rule').getAttribute('href'), /^https:\/\/modelcontextprotocol\.io\//);
+  await row.locator('details.cmp-evidence summary').click();
+  assert.match(await row.locator('details.cmp-evidence pre').textContent(), /requestId/);
+  assert.equal(await h.page.locator('#complianceResults li[data-status="not-applicable"]').count(), 0, 'quiet results are folded away');
+  assert.equal(await h.page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+});
+
+test('AC-SPEC-REPORT-05: the report exports as Markdown and JSON', { skip: h.skip }, async () => {
+  const md = await h.page.evaluate(() => window.state.compliance.result.markdown);
+  assert.match(md, /\| FAIL \| \[MCP-RPC-002\]/);
+  await h.page.evaluate(() => { window.__copied = null; window.copyText = (t) => { window.__copied = t; }; });
+  await h.page.click('#complianceCopy');
+  assert.equal(await h.page.evaluate(() => window.__copied), md);
+  const [download] = await Promise.all([h.page.waitForEvent('download'), h.page.click('#complianceJson')]);
+  assert.match(download.suggestedFilename(), /^mcp-compliance-.*\.json$/);
+  const json = JSON.parse(await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString('utf8')));
+  assert.equal(json.report.verdict, 'fail');
+  assert.equal(json.target, h.mock.base + '/scenario/id-mismatch/mcp');
+});
+
+test('AC-SPEC-REPORT-06: credentials bound to the server are used; a protected server without them grades authorization only', { skip: h.skip }, async () => {
+  await runCheck(h.mock.base + '/secure');
+  assert.match(await h.page.textContent('.cmp-caveat'), /Only authorization was graded.*Sign in from Auth/);
+  assert.equal(await h.page.locator('#complianceResults li[data-rule="MCP-AUTH-005"]').getAttribute('data-status'), 'pass');
+
+  await signInTo('/secure');   // bound to /secure, so the check may use the token
+  await runCheck(h.mock.base + '/secure');
+  assert.equal(await h.page.evaluate(() => window.state.compliance.result.summary.era), 'legacy', 'signed in, the protocol is graded');
+  assert.equal(await h.page.textContent('#complianceVerdict'), 'Pass');
+  const token = await h.page.evaluate(() => window.auth.token.access_token);
+  assert.equal((await h.page.content()).includes(token), false);
+
+  await runCheck(h.mock.url);   // another server: the token is not sent there
+  const sent = h.mock.calls.filter((c) => c.path === '/mcp').slice(-3);
+  assert.ok(sent.every((c) => c.headers.authorization === undefined));
+  await resetAuth();
+});
+
+test('AC-SPEC-REPORT-07: Cancel stops the check', { skip: h.skip }, async () => {
+  await h.page.click('.tab-btn[data-tab="compliance"]');
+  await h.page.fill('#urlInput', h.mock.url + '?delay=400');
+  await h.page.click('#complianceRun');
+  await h.page.waitForSelector('#complianceCancel');
+  await h.page.click('#complianceCancel');
+  await h.page.waitForFunction(() => !window.state.compliance.running, null, { timeout: 5000 });
+  assert.equal(await h.page.textContent('#complianceError'), 'Check cancelled');
+  assert.equal(await h.page.isVisible('#complianceRun'), true);
+  await h.page.click('.tab-btn[data-tab="tools"]');
+});

@@ -14,14 +14,16 @@ import { collectCompliance, parseEventStream } from '../../src/core/compliance/c
 import { runCompliance } from '../../src/core/compliance/engine.js';
 import { COMPLIANCE_CATALOGUE } from '../../src/core/compliance/catalogue.js';
 import { schemaProblems } from '../../src/core/compliance/rules/json-schema.js';
-import { proxySend, markdownReport } from '../../scripts/compliance.mjs';
+import { cliEnv } from '../../scripts/compliance.mjs';
+import { complianceSend } from '../../src/core/compliance/run.js';
+import { complianceSummary, complianceMarkdown } from '../../src/core/compliance/report.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 let mock;
 before(async () => { mock = await startMock({ port: 0 }); });
 after(async () => { await mock.close(); });
 
-const send = (url) => proxySend([new URL(url).origin], fetch);
+const send = (url) => complianceSend(cliEnv(url, fetch));
 async function grade(path, extra = {}) {
   const url = mock.base + path;
   const ctx = await collectCompliance({ url, send: send(url), ...extra });
@@ -123,7 +125,7 @@ test('AC-SPEC-RPC-04: a server that is unreachable or refuses the handshake is n
   assert.equal(refused.ctx.era, null);
   assert.match(refused.ctx.handshakeError, /server\/discover: HTTP 401.*initialize: HTTP 401/);
   assert.deepEqual(refused.report.results.filter((r) => ['fail', 'error'].includes(r.status)), []);
-  assert.match(markdownReport('x', refused.ctx, refused.report), /Only authorization was graded.*--header "Authorization: Bearer/);
+  assert.match(complianceMarkdown(complianceSummary(refused.ctx), refused.report), /Only authorization was graded.*Sign in and run the check again/);
   // ...and with a token it is graded like any other server
   const token = 'at-test';
   mock.oauth.tokens.set(token, { resource: mock.base + '/secure', scope: 'mcp:read' });
@@ -191,7 +193,7 @@ test('AC-SPEC-TOOLS-03: the schema check knows JSON Schema 2020-12 structure and
 test('AC-SPEC-TOOLS-04: event-stream responses and the Markdown report', async () => {
   assert.deepEqual(parseEventStream('event: message\ndata: {"a":1}\n\ndata: {"b":\ndata: 2}\n\n'), [{ a: 1 }, { b: 2 }]);
   const { ctx, report } = await grade(scenario('id-mismatch'));
-  const md = markdownReport(mock.base + scenario('id-mismatch'), ctx, report);
+  const md = complianceMarkdown(complianceSummary(ctx), report);
   assert.match(md, /Verdict: \*\*fail\*\*/);
   assert.match(md, /\| FAIL \| \[MCP-RPC-002\]\(https:\/\/modelcontextprotocol\.io\//);
   assert.equal(md.includes('| n/a |'), false, 'rules that do not apply are left out');
@@ -207,7 +209,7 @@ test('AC-SPEC-AUTH-01: a correctly protected server passes every authorization r
   assert.equal(ctx.auth.challenge.status, 401);
   assert.deepEqual(authResults(report).map((r) => r.status), Array(9).fill('pass'));
   assert.deepEqual(flagged(report), []);
-  const md = markdownReport(mock.base + '/secure', ctx, report);
+  const md = complianceMarkdown(complianceSummary(ctx), report);
   assert.match(md, /Only authorization was graded/);
   assert.match(md, /Verdict: \*\*pass\*\*/);
   assert.equal((await cli(mock.base + '/secure')).status, 0, 'a passing partial grade exits 0');

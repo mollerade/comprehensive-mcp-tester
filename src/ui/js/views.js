@@ -22,6 +22,7 @@ function renderTab() {
   var ct = document.getElementById('tabContent');
   if (state.activeTab === 'log') { ct.innerHTML = renderLog(); return; }
   if (state.activeTab === 'diag') { ct.innerHTML = renderDiagnostics(); return; }
+  if (state.activeTab === 'compliance') { ct.innerHTML = renderCompliance(); return; }
   if (!state.connected) {
     ct.innerHTML = '<div class="empty-state"><svg width="36" height="36" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 3"/><path d="M14 20h12M20 14v12" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/></svg>Enter a server URL, pick a transport, and connect</div>';
     return;

@@ -10,11 +10,6 @@
       "proxyMcp": 34
     }
   },
-  "src/hosts/cloudflare.js": {
-    "complexity": {
-      "handleRequest": 15
-    }
-  },
   "src/hosts/node-server.js": {
     "complexity": {
       "(unnamed #1)": 14

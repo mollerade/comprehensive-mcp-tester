@@ -9,7 +9,7 @@ Milestone versions below are the fork's plan for when each item lands. They are 
 | 1 | Repository and shared core | Shipped | - | 0.8.0 |
 | 2 | Both protocol eras: 2026-07-28 stateless and the `initialize` handshake | Shipped | - | 0.9.0 |
 | 3 | Authentication | Shipped | - | 0.10.0 |
-| 4 | Spec compliance check | In progress | [#8](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/8) | 0.10.2 |
+| 4 | Spec compliance check | Shipped | [#8](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/8) | 0.10.2 |
 | 5 | Log-driven hints, flow diagram, replay, cURL, variables, collections | Planned | [#19](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/19) | 0.10.3 to 0.10.5 |
 | 6 | Docker image for the local server | Planned | [#23](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/23) | 0.10.6 |
 | 7 | Signed Mac and Windows builds | Planned | [#26](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/26) | 0.10.7 |
@@ -40,7 +40,7 @@ Per spec 2026-07-28, in `src/ui/js/auth.js`:
 
 Refresh-token use ([#44](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/44)) shipped in 0.10.1. Not done yet, and planned under item 4's milestone: automatic step-up on 403 `insufficient_scope` ([#45](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/45); today it is detected and shown, and you sign in again by hand). Also not done: `offline_access` and `private_key_jwt`.
 
-## 4. Spec compliance check (in progress)
+## 4. Spec compliance check (shipped, 0.10.2)
 
 Rule-based pass / warn / fail checks, keyed to the protocol version the server claims, each citing the spec section it enforces and each with a matching failure mode in the mock server. Examples: `resultType` on every result; `ttlMs` and `cacheScope` on list results; a bogus version answered with 400, -32022 and a `supported` list; an unknown method answered with 404 and -32601; deterministic `tools/list` order; tool schemas that are valid JSON Schema 2020-12 with resolvable `$ref`s; valid `x-mcp-header` annotations; `serverInfo` in the result `_meta`; deprecated features still advertised (Roots, Sampling, Logging, HTTP+SSE).
 
@@ -50,7 +50,7 @@ Rule-based pass / warn / fail checks, keyed to the protocol version the server c
 | [#10](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/10) | JSON-RPC, transport and lifecycle rules (legacy and stateless) | Done (0.10.2) |
 | [#11](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/11) | Capability, tools, resources, prompts and pagination rules | Done (0.10.2) |
 | [#12](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/12) | Authorization rules built on the OAuth discovery trace | Done (0.10.2) |
-| [#13](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/13) | Report panel with evidence, cancel, and JSON / Markdown export | Open |
+| [#13](https://github.com/sebastienrousseau/comprehensive-mcp-tester/issues/13) | Report panel with evidence, cancel, and JSON / Markdown export | Done (0.10.2) |
 
 ## 5. Log-driven hints and workflow (planned)
 

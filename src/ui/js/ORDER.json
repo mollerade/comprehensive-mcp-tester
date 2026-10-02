@@ -9,6 +9,8 @@
   "auth-ui.js",
   "schema.js",
   "diagnostics.js",
+  "compliance.js",
+  "compliance-view.js",
   "views.js",
   "log.js",
   "servers.js",
