@@ -299,6 +299,13 @@ test('dual-era server is spoken to in the modern protocol', { skip }, async () =
 
 const statusIs = (text) => page.waitForFunction((t) => document.getElementById('statusText').textContent === t, text, { timeout: 5000 });
 const traceStep = (name) => page.evaluate((n) => window.auth.trace.find((s) => s.name === n), name);
+// The page is already at base + '/', so waiting for that URL resolves at once: wait for the
+// callback first, then for the return and the reloaded page's globals.
+const signInViaRedirect = async () => {
+  await Promise.all([page.waitForURL(/\/oauth\/callback/, { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForURL(base + '/', { timeout: 10000 });
+  await page.waitForFunction(() => window.state && window.auth, null, { timeout: 10000 });
+};
 
 test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resource, then connects', { skip }, async () => {
   const mark = mock.calls.length;
@@ -384,8 +391,8 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   // A public client: an earlier test typed client credentials into these fields, and a secret is not kept across a redirect
   await page.fill('#authClientId', '');
   await page.fill('#authClientSecret', '');
-  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
-  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
+  await signInViaRedirect();
+  await page.waitForFunction(() => window.state && window.state.connected, null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
   assert.equal(await page.evaluate(() => location.search), '', 'no code left in the address bar');
   const trace = await page.evaluate(() => window.auth.trace.map((s) => s.name + ':' + s.outcome));
@@ -410,7 +417,7 @@ test('OAuth with pop-ups blocked and a client secret: the secret is not persiste
     const set = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) { if (String(v).includes('cc-secret')) localStorage.setItem('__secretPersisted', '1'); return set.call(this, k, v); };
   });
-  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
+  await signInViaRedirect();
   await page.waitForFunction(() => window.auth.trace.some((s) => s.name === 'Token request' && s.outcome === 'fail'), null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => localStorage.getItem('__secretPersisted')), null, 'the client secret was written to sessionStorage');
   assert.equal(mock.oauth.tokenRequests.length, tokensBefore, 'a token request was sent without the secret');
