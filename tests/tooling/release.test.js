@@ -42,3 +42,15 @@ test('AC-REL-V001-02: published release reads back', () => {
   assert.match(preflight, /"MCP Tester v\$VERSION"/, 'the tag message is checked');
   assert.match(preflight, /git merge-base --is-ancestor "\$COMMIT" origin\/main/, 'the tag must point at main');
 });
+
+test('attestations are skipped for pull requests from forks, which get no OIDC token', () => {
+  const workflow = read('.github/workflows/release.yml');
+  const guard = "if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
+  for (const step of ['Build provenance', 'SBOM attestation', 'Ship the provenance bundle with the release']) {
+    const body = workflow.split('- name: ' + step)[1];
+    assert.ok(body, 'the workflow has a step named ' + step);
+    assert.ok(body.split('- name:')[0].includes(guard), step + ' is not guarded for fork pull requests');
+  }
+  const publish = workflow.split('- name: Publish the release')[1].split('- name:')[0];
+  assert.match(publish, /if: env\.DRY_RUN == 'false'/, 'publishing stays a real-release step');
+});
