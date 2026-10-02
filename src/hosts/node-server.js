@@ -22,8 +22,10 @@
  */
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
 import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
+import { CONTENT_SECURITY_POLICY } from '../core/security-headers.js';
 import { assembleHtml } from '../ui/assemble.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -35,6 +37,11 @@ function send(res, status, headers, body) {
     'Referrer-Policy': 'no-referrer',
   }, headers));
   res.end(body);
+}
+/** The detail stays in the terminal, not in the response */
+function sendInternalError(res, err) {
+  console.error(err);
+  sendJson(res, 500, { error: 'Internal error' });
 }
 function sendJson(res, status, obj) {
   send(res, status, { 'Content-Type': 'application/json' }, JSON.stringify(obj));
@@ -97,7 +104,7 @@ export function createServer(opts = {}) {
 
       // The OAuth callback is the same page: it hands the result to the window that opened it
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === CALLBACK_PATH)) {
-        return send(res, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }, assembleHtml());
+        return send(res, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': CONTENT_SECURITY_POLICY }, assembleHtml());
       }
 
       if (req.method === 'GET' && url.pathname === CLIENT_METADATA_PATH) {
@@ -134,13 +141,21 @@ export function createServer(opts = {}) {
 
       return send(res, 404, { 'Content-Type': 'text/plain' }, 'Not found');
     } catch (err) {
-      return sendJson(res, 500, { error: 'Internal error', detail: String(err && err.message || err) });
+      return sendInternalError(res, err);
     }
   });
 }
 
-// Run directly: node src/hosts/node-server.js
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/* Run directly: node src/hosts/node-server.js. Node resolves import.meta.url
+   through symlinks but leaves argv[1] as typed, so compare real paths, or a
+   checkout or install under a symlinked directory would silently not start. */
+function isMain() {
+  if (!process.argv[1]) return false;
+  try { return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href; }
+  catch { return false; }
+}
+
+if (isMain()) {
   const port = parseInt(process.env.PORT || '8787', 10);
   const host = process.env.HOST || '127.0.0.1';
   const server = createServer();
@@ -151,7 +166,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   });
   server.listen(port, host, () => {
     const shown = host === '0.0.0.0' ? 'localhost' : host;
-    console.log(`MCP Tester running at http://${shown}:${port}`);
+    console.log(`MCP Tester running at http://${shown}:${server.address().port}`);
     if (process.env.ALLOWED_ORIGINS) console.log(`Proxy restricted to: ${process.env.ALLOWED_ORIGINS}`);
   });
 }

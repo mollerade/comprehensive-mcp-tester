@@ -11,10 +11,13 @@ A browser-based MCP (Model Context Protocol) client for testing and diagnosing M
 ```sh
 npm install
 npm test          # all suites, ~10s. Run before every commit.
+npm run test:trace # every AC in docs/acceptance/ has a test titled with its ID, and vice versa
+make check        # test + trace + readme + links + build: the offline CI gate
+make docs         # user manual (pip install --require-hashes -r docs/manual/requirements.txt first)
 npm run build     # dist/index.html, dist/worker.js (paste into Cloudflare), dist/worker.mjs (wrangler)
 npm start         # local server on http://127.0.0.1:8787
 npm run dev       # same, restarts on core/host changes; UI edits show on reload
-npm run mock      # mock MCP server on http://127.0.0.1:8788/mcp (+ /slow /hang /fail /stream)
+npm run mock      # mock MCP server on http://127.0.0.1:8788/mcp (+ /slow /hang /fail /stream; /scenario/<name>/mcp, GET /__scenarios)
 ```
 
 E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`. Without it they skip; they don't fail.
@@ -22,7 +25,7 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 ## Architecture rules
 
 - **Edit `src/`, never `dist/`.** `dist/` is generated and gitignored.
-- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports. Hosts inject `fetch`, `allowedOrigins` and `colo`. The `/proxy` request/response envelope is a contract the UI depends on. Change it deliberately, and update both hosts and the tests together. `purpose: 'oauth'` (0.10.0) skips the MCP Accept/Content-Type repair for discovery and token calls. New core files must be added to the Worker concatenation in `scripts/build.mjs`.
+- **`src/core/` stays platform-free.** No Cloudflare globals, no `node:` imports. Hosts inject `fetch`, `allowedOrigins` and `colo`. The `/proxy` request/response envelope is a contract the UI depends on. Change it deliberately, and update both hosts and the tests together. `purpose: 'oauth'` (0.10.0) skips the MCP Accept/Content-Type repair for discovery and token calls. New core files must be added to the Worker concatenation (`CORE_FILES` in `scripts/build.mjs`). The build fails if anything under `src/core/` imports a `node:` module or uses a Cloudflare-only API.
 - **Hosts are thin adapters.** `src/hosts/cloudflare.js` (bundled into both Worker formats by the build) and `src/hosts/node-server.js`. A new runtime (Docker, desktop) means a new adapter, not changes to core or UI.
 - **The UI ships as ONE self-contained HTML file.** `src/ui/assemble.js` inlines `styles.css` and the JS files. Keep it that way: every host serves one string, and the Worker embeds it.
 - **Client JS files are classic scripts sharing one global scope**, not ES modules, concatenated in `src/ui/js/ORDER.json` order. Don't add `import`/`export` there. Top-level code only in `state.js` (first) and `main.js` (last); everything else is function declarations. New file → add it to ORDER.json.
@@ -30,11 +33,14 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 - **The build has zero dependencies** and must keep producing a `dist/worker.js` that pastes into the Cloudflare dashboard editor (Service Worker format, no `import`/`export`). The build self-checks this; don't weaken those checks.
 - **No runtime dependencies.** Playwright is the only devDependency. Adding any package needs a strong reason: corporate users will audit it.
 
+- **Compliance rules are data graded by a pure engine.** `src/core/compliance/engine.js` selects rules by the server's claimed version (unknown → newest set, marked best effort) and grades recorded exchanges; it never sends anything. A rule is `{ id: 'MCP-<CATEGORY>-<NNN>', title, category, severity: 'fail'|'warn', appliesTo, specRef (https), needsProbe?, check(ctx) }` in `rules/<category>.js`, listed in `catalogue.js`, and cites the spec section it enforces. Every rule needs a mock scenario that breaks it (`tests/fixtures/mock/scenarios/violations.mjs`).
+
 ## Security invariants (tested; keep them)
 
 - **Local server:** binds `127.0.0.1` by default. It rejects unknown `Host` headers (DNS rebinding) with 421. It rejects a foreign `Origin` on `/proxy` with 403, and non-JSON content types with 415. It never sends CORS grants. It is deliberately NOT an open proxy, because it runs inside company networks.
 - **Cloudflare Worker:** public, but since 0.10.0 no longer an open CORS proxy. `/proxy` rejects a foreign `Origin` with 403, and no response carries CORS grants. Deployment guidance (README, worker banner): set `ALLOWED_ORIGINS` (MCP and authorization server hosts), put Cloudflare Access in front, and bypass `/oauth/client-metadata.json`.
-- **Credentials live in memory** (`auth` in `state.js`), never in `localStorage`. They are bound to the server they were set up for (`auth.boundTo`) and never sent to another. Tokens and secrets are redacted from the Log (`REDACT_KEYS`). The only exception is the redirect fallback: the in-flight request (PKCE verifier, state, expected issuer, trace, and a client secret if one was entered) is kept in `sessionStorage` and removed when the page returns. The older Headers dialog still persists to `localStorage`. That is known, and the UI steers tokens to Auth.
+- **Credentials live in memory** (`auth` in `state.js`), never in `localStorage`. They are bound to the server they were set up for (`auth.boundTo`) and never sent to another. Tokens and secrets are redacted from the Log (`REDACT_KEYS`). The only exception is the redirect fallback: the in-flight request (PKCE verifier, state, expected issuer, trace) is kept in `sessionStorage` and removed when the page returns. A client secret is never persisted: if the sign-in needs one, the page asks for it again on return instead of exchanging the code. The older Headers dialog still persists to `localStorage`. That is known, and the UI steers tokens to Auth.
+- **Content-Security-Policy:** both hosts send `CONTENT_SECURITY_POLICY` (`src/core/security-headers.js`) with the HTML. The e2e suite fails on any CSP violation, so a feature that needs another origin must change the policy deliberately.
 - **OAuth checks are enforced, not just reported:** issuer mismatch in AS metadata, `iss` in the authorization response (RFC 9207 table; checked before an `error` is shown or the code is used), `state`, and PKCE S256 support. A protected resource metadata `resource` mismatch is reported as a warning but not enforced, so testing can continue.
 
 ## Decisions already made (don't relitigate without the owner)
@@ -46,26 +52,13 @@ E2E tests need Chromium: `npx playwright install chromium`, or set `PW_CHROMIUM_
 - **Design:** French blue accent (light `#0067B1`, dark `#3B8FDD` with near-black text on filled buttons). Neutrals carry a slight blue bias. Everything goes through CSS tokens with three theme states: system (no attribute), `data-theme="light"`, `data-theme="dark"`. Request/response panels are tonally distinct (blue edge / green edge / red on error). Required/optional parameters show rose/blue pills. Dark-mode legibility was a specific owner complaint, so check both themes.
 - **Suggested tool requests:** fill required params plus optionals that have a default, enum, example or const. Never pre-send placeholder junk for optionals without a hint.
 
-## Roadmap (agreed order)
+## Roadmap
 
-1. ~~Repo + shared core~~ (done, v0.8.0)
-2. ~~Dual-era protocol~~ (done, v0.9.0). The client speaks spec 2026-07-28 (stateless: `server/discover`, per-request `_meta`, `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` / `Mcp-Param-*` headers). It falls back to the `initialize` handshake (offering 2025-11-25) when the server answers discover with an HTTP error that is not a recognised modern error (-32020/-32021/-32022). A transport failure does not trigger fallback. The expected fallback error is logged, but not counted as a failure in diagnostics. Mock server: `/modern` (modern only) and `/dual` (both eras); the other paths stay legacy.
-3. ~~Authentication~~ (done, v0.10.0), in `src/ui/js/auth.js`, per spec 2026-07-28:
-   - 401/403 challenge → protected resource metadata (header URL, then path-inserted and root well-known) → AS metadata (RFC 8414 / OIDC priority order, issuer must match) → registration → auth code + PKCE → `iss` check → token, with `resource` on both requests. Each step goes to `auth.trace` and the Log.
-   - Registration priority: entered client ID (bound to the first issuer it is used with) → CIMD (only on a public HTTPS origin, and only when the AS sets `client_id_metadata_document_supported`) → DCR (deprecated; `application_type` is `native` on loopback, `web` otherwise; cached per issuer) → ask the user.
-   - Pop-up first. If pop-ups are blocked, it redirects the page and resumes on `/oauth/callback`. Both hosts serve the UI there.
-   - Manual modes: bearer, API-key header, client credentials (secret via Basic auth unless the AS only allows `client_secret_post`).
-   - **Not yet done:** refresh-token use (tokens are stored but not refreshed); automatic step-up on 403 `insufficient_scope` (it is detected and toasted; you sign in again manually with the union of scopes); `offline_access`; `private_key_jwt`.
-4. Spec compliance check. Rule-based pass / warn / fail checks, keyed to the version the server claims to support. Examples: `resultType` on every result; `ttlMs` + `cacheScope` on list results; a bogus version → 400 with -32022 and a `supported` list; unknown method → 404 with -32601; deterministic `tools/list` order; tool schemas valid JSON Schema 2020-12 with resolvable `$ref`s; valid `x-mcp-header` annotations; `serverInfo` in the result `_meta`; deprecated features still advertised (Roots, Sampling, Logging, HTTP+SSE). Give each check a matching failure mode in the mock server.
-5. Log-driven hints. Rules first, not AI. Legacy servers: 400 "no valid session" → initialise; 404 on a live session → reconnect. Modern servers: -32020 → show the mismatched header; -32022 → offer the listed versions. Both: 406 → Accept; 401 → sign in; -32602 → jump to the field. Also add a connection flow diagram: an inline SVG sequence diagram (discover/initialize → auth steps → list → call) using the three-state colours, plus a "Copy as Mermaid" button so it pastes into GitHub issues and Markdown, where it renders natively. Don't bundle Mermaid.js: it's large, and loading it from a CDN would break offline use inside company networks. Plus replay, edit & resend, copy as cURL, `{{variables}}`, collections. Stay MCP-shaped: not a general REST client.
-   - Not yet implemented from 2026-07-28: MRTR (`resultType: "input_required"` → `inputResponses` retry), `subscriptions/listen`, per-request `logLevel`, the tasks extension.
-6. Docker image for the Node host. Container binds 0.0.0.0, so `MCP_TESTER_ALLOWED_HOSTS` matters.
-7. Signed Mac and Windows builds. Prefer Tauri or a small single binary over Electron. Code signing is the real blocker: Apple Developer ID + notarization; a Windows signing certificate.
-8. Agent playground: an OpenAI-compatible endpoint (Ollama :11434, LM Studio :1234) acting as an MCP host. Framed as a test of tool-description quality using small (~8B) models. Belongs mainly in the local build.
+[`ROADMAP.md`](ROADMAP.md) is the single source: the agreed order, each item's detail (including what is not yet done in authentication and in the 2026-07-28 spec), and the fork issues that track it. Keep it current when an item ships, and strike the item out in the table with its version.
 
 ## Working agreements
 
-- Run `npm test` before committing. Add or adjust tests with every behaviour change; the e2e suite drives the real UI through the real proxy to the mock server.
-- Keep `tests/fixtures/mock-mcp-server.mjs` realistic: it should fail the same ways real servers do.
+- Run `npm test`, `npm run test:trace` and `npm run check:readme` before committing. The README follows a fixed section layout (see `scripts/check-readme.mjs`); add content inside the existing sections, not new ones. Add or adjust tests with every behaviour change; the e2e suite drives the real UI through the real proxy to the mock server.
+- Keep `tests/fixtures/mock-mcp-server.mjs` realistic: it should fail the same ways real servers do. New misbehaviour is a new scenario in `tests/fixtures/mock/scenarios/` (served on `/scenario/<name>/mcp`), not a new top-level path; `startMock({ port: 0 })` gives each test its own instance.
 - After UI changes, check light and dark and ~400px width (the e2e suite asserts no horizontal overflow).
 - Deploying to Cloudflare today is manual: paste `dist/worker.js` into the dashboard, selecting and deleting ALL existing code first. A leftover-code paste once caused a confusing `Unexpected identifier` error.

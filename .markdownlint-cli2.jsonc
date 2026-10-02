@@ -1,0 +1,18 @@
+{
+  // Markdown style for every .md file; run in CI by the docs-lint job.
+  "config": {
+    "default": true,
+    // Prose is written one paragraph per line; tables and URLs run long.
+    "MD013": false,
+    // The README's centred header block is HTML, per the README template.
+    "MD033": false,
+    // The README opens with its SPDX comment, then an HTML <h1>; GitHub issue
+    // and PR templates start with front matter or prose, not a title.
+    "MD041": false,
+    // "Contents" groups use bold labels, not headings.
+    "MD036": false,
+    // Keep a Changelog repeats "Added" / "Changed" under each release.
+    "MD024": { "siblings_only": true }
+  },
+  "ignores": ["node_modules/**", "dist/**", "build/**"]
+}

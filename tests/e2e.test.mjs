@@ -27,7 +27,8 @@ async function launch() {
 const browser = await launch();
 const skip = browser ? false : 'Playwright/Chromium not available — run `npx playwright install chromium`';
 
-let mock, server, base, page;
+let mock, server, base, page, firstResponse;
+const cspViolations = [];   // every Content-Security-Policy report, from the page and its OAuth pop-ups
 
 before(async () => {
   if (skip) return;
@@ -36,7 +37,10 @@ before(async () => {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
-  await page.goto(base + '/');
+  const watch = (p) => p.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) cspViolations.push(m.text()); });
+  watch(page);
+  page.context().on('page', watch);
+  firstResponse = await page.goto(base + '/');
 });
 
 after(async () => {
@@ -367,8 +371,11 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
-  await page.evaluate(() => { window.open = () => null; });
+  await page.evaluate(() => { window.auth.preIssuer = null; window.open = () => null; });
   await page.selectOption('#authMode', 'oauth');
+  // A public client: an earlier test typed client credentials into these fields, and a secret is not kept across a redirect
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
   await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
   await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
@@ -380,6 +387,33 @@ test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on r
   await page.click('#connectBtn');
 });
 
+test('OAuth with pop-ups blocked and a client secret: the secret is not persisted, and is asked for again', { skip }, async () => {
+  const tokensBefore = mock.oauth.tokenRequests.length;
+  await page.evaluate(() => forgetCredentials());   // the previous test signed in to /secure
+  await page.fill('#urlInput', mock.base + '/secure');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.evaluate(() => { window.open = () => null; });
+  await page.selectOption('#authMode', 'oauth');
+  await page.fill('#authClientId', 'cc-client');
+  await page.fill('#authClientSecret', 'cc-secret');
+  // Record what the page writes to sessionStorage before it navigates away
+  await page.evaluate(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (String(v).includes('cc-secret')) localStorage.setItem('__secretPersisted', '1'); return set.call(this, k, v); };
+  });
+  await Promise.all([page.waitForURL(base + '/', { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForFunction(() => window.auth.trace.some((s) => s.name === 'Token request' && s.outcome === 'fail'), null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('__secretPersisted')), null, 'the client secret was written to sessionStorage');
+  assert.equal(mock.oauth.tokenRequests.length, tokensBefore, 'a token request was sent without the secret');
+  assert.match(await page.evaluate(() => window.auth.trace.at(-1).detail), /client secret is not kept across the redirect/);
+  assert.equal(await page.evaluate(() => window.state.connected), false);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
+  await page.evaluate(() => { localStorage.removeItem('__secretPersisted'); window.auth.preIssuer = null; hideAuthModal(); });
+});
+
 test('credentials are not sent to a different server', { skip }, async () => {
   const mark = mock.calls.length;
   await page.fill('#urlInput', mock.url);
@@ -389,7 +423,49 @@ test('credentials are not sent to a different server', { skip }, async () => {
   await page.click('#connectBtn');
 });
 
+// Connecting flips `state.connected` before fetchAll() returns, so the user can switch
+// servers while the old server's tools/list is still in flight (/slow-list holds it 800ms).
+async function connectSlowList() {
+  if (await page.evaluate(() => window.state.connected)) await page.click('#connectBtn');
+  const mark = mock.calls.length;
+  await page.fill('#urlInput', mock.base + '/slow-list');
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  await waitForCall('tools/list', '/slow-list', { after: mark });
+}
+const waitPastSlowList = () => new Promise((r) => setTimeout(r, 1200));
+
+test('AC-BUG-CONNGEN-01: a stale response is ignored', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect from A
+  await page.fill('#urlInput', mock.url);
+  await page.click('#connectBtn');                                  // connect to B
+  await page.waitForFunction(() => window.state.connected && window.state.tools.length === 3, null, { timeout: 5000 });
+  await waitPastSlowList();
+  const names = await page.evaluate(() => window.state.tools.map((t) => t.name));
+  assert.equal(names.includes('slow_list_tool'), false, 'A\'s late tools/list wrote into B: ' + names.join(', '));
+  assert.equal(names.length, 3);
+  await page.click('#connectBtn');
+});
+
+test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect while tools/list is in flight
+  await waitPastSlowList();
+  assert.deepEqual(await page.evaluate(() => window.state.tools), []);
+  assert.equal(await page.textContent('#toolsBadge'), '0');
+  assert.equal(await page.evaluate(() => document.body.textContent.includes('slow_list_tool')), false);
+});
+
 test('no horizontal overflow at phone width', { skip }, async () => {
   await page.setViewportSize({ width: 400, height: 800 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+});
+
+test('AC-SEC-CSP-02: the app still functions under the policy', { skip }, async () => {
+  const csp = firstResponse.headers()['content-security-policy'];
+  assert.ok(csp && csp.includes("connect-src 'self'"), 'the page was not served with the policy');
+  // Runs last: every flow above (connect, both eras, sign-in with pop-up and redirect, execute,
+  // diagnostics, theme) has run under the policy by now, and none may have been blocked.
+  assert.deepEqual(cspViolations, []);
 });

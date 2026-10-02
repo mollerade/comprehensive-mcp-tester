@@ -20,6 +20,17 @@ function isLoopbackHost(h) {
   return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
 }
 
+/* The authorization endpoint drives a top-level browser navigation, so it must be
+   https (or http on loopback for local testing). Anything else, such as a javascript:
+   URL handed back by a hostile or misconfigured authorization server, is refused
+   before we navigate the pop-up or the page. */
+function isNavigableAuthUrl(url) {
+  var u;
+  try { u = new URL(url); } catch (e) { return false; }
+  if (u.protocol === 'https:') return true;
+  return u.protocol === 'http:' && isLoopbackHost(u.hostname);
+}
+
 /* The Bearer challenge's parameters, e.g. resource_metadata, scope, error */
 function parseWwwAuthenticate(header) {
   if (!header) return null;
@@ -82,13 +93,13 @@ function formEncode(obj) {
   return parts.join('&');
 }
 
-function parseQuery(search) {
-  var out = {}, pairs = String(search || '').replace(/^\?/, '').split('&');
+function parseQuery(search) {   // keeps only the authorization response's parameters (RFC 6749 4.1.2, RFC 9207)
+  var out = {}, keep = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
+  var pairs = String(search || '').replace(/^\?/, '').split('&');
   for (var i = 0; i < pairs.length; i++) {
-    if (!pairs[i]) continue;
     var eq = pairs[i].indexOf('=');
-    var k = eq === -1 ? pairs[i] : pairs[i].slice(0, eq), v = eq === -1 ? '' : pairs[i].slice(eq + 1);
-    out[decodeURIComponent(k.replace(/\+/g, ' '))] = decodeURIComponent(v.replace(/\+/g, ' '));
+    var k = decodeURIComponent((eq === -1 ? pairs[i] : pairs[i].slice(0, eq)).replace(/\+/g, ' '));
+    if (keep.indexOf(k) !== -1) out[k] = decodeURIComponent((eq === -1 ? '' : pairs[i].slice(eq + 1)).replace(/\+/g, ' '));
   }
   return out;
 }
@@ -331,6 +342,10 @@ function startSignIn() {
       throw new Error('no PKCE S256');
     }
     if (!d.as.authorization_endpoint) { traceStep('Authorization endpoint', 'fail', 'No authorization_endpoint in the metadata'); throw new Error('no authorization_endpoint'); }
+    if (!isNavigableAuthUrl(d.as.authorization_endpoint)) {
+      traceStep('Authorization endpoint', 'fail', 'authorization_endpoint must be https (or http on loopback); refusing to open "' + d.as.authorization_endpoint + '"');
+      throw new Error('unsafe authorization_endpoint');
+    }
     return registerClient(d.as).then(function(client) {
       return makePkce().then(function(pkce) {
         var st = randomString(16);
@@ -445,10 +460,17 @@ function discoverOnly() {
 
 /* ── Redirect fallback ──
    Only the in-flight request is kept, in this tab's sessionStorage, and it is removed
-   the moment the page returns. Tokens never leave memory. */
+   the moment the page returns. Tokens never leave memory, and neither does a client
+   secret: it is left out, and a sign-in that needs one asks for it again on return. */
 function savePendingRedirect() {
   var p = auth.pending, pending = {};
   for (var k in p) { if (p.hasOwnProperty(k) && k !== 'popup') pending[k] = p[k]; }
+  if (p.client && p.client.client_secret) {
+    var client = {};
+    for (var c in p.client) { if (p.client.hasOwnProperty(c) && c !== 'client_secret') client[c] = p.client[c]; }
+    pending.client = client;
+    pending.secretRequired = true;
+  }
   try {
     sessionStorage.setItem('mcp_oauth_pending', JSON.stringify({
       pending: pending, clientId: auth.clientId, scope: auth.scope, preIssuer: auth.preIssuer, trace: auth.trace
@@ -481,7 +503,17 @@ function resumeRedirectSignIn() {
   if (p.client && p.client.how === 'dynamic registration') auth.registrations[p.issuer] = p.client;
   auth.pending = p; auth.busy = true;
   openAuthModal();
+  if (p.secretRequired) return askForSecretAgain();
   handleAuthResponse(parseQuery(search));
+}
+
+/* The secret was not kept across the redirect, so the code cannot be exchanged here */
+function askForSecretAgain() {
+  auth.pending = null; auth.busy = false; auth.clientSecret = '';
+  traceStep('Token request', 'fail', 'The client secret is not kept across the redirect, so the code was not exchanged. ' +
+    'Enter the client secret again and sign in, or allow pop-ups so sign-in stays in this page.');
+  renderAuthModal();
+  showToast('Enter the client secret again to finish signing in', 'err');
 }
 
 /* The OAuth redirect lands on this same page in the pop-up: hand the result back and close */

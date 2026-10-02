@@ -4,11 +4,14 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, cpSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { build } from '../scripts/build.mjs';
+import { join, dirname } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { build, platformViolations } from '../scripts/build.mjs';
+
+const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 import { assembleHtml } from '../src/ui/assemble.js';
 import { createServer } from '../src/hosts/node-server.js';
 import { startMockServer } from './fixtures/mock-mcp-server.mjs';
@@ -179,4 +182,95 @@ describe('Local Node server', () => {
     await new Promise((r) => s2.close(r));
     assert.equal(status, 200);
   });
+});
+
+test('AC-SPEC-ENGINE-07: platform-free', () => {
+  assert.deepEqual(platformViolations(join(ROOT_DIR, 'src', 'core')), []);
+  assert.doesNotThrow(() => build({ write: false }));
+
+  const dir = mkdtempSync(join(tmpdir(), 'core-'));
+  try {
+    mkdirSync(join(dir, 'compliance'));
+    writeFileSync(join(dir, 'compliance', 'bad.js'), "import { readFileSync } from 'node:fs';\n");
+    writeFileSync(join(dir, 'worker-only.js'), 'const r = new HTMLRewriter();\n');
+    const found = platformViolations(dir).join('\n');
+    assert.match(found, /bad\.js: imports a node: module/);
+    assert.match(found, /worker-only\.js: uses a Cloudflare-only API/);
+    assert.throws(() => build({ write: false, coreDir: dir }), /src\/core must stay platform-free/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the compliance engine runs unchanged inside the Worker bundle', () => {
+  const { sw } = build({ write: false });
+  const ctx = vm.createContext({ addEventListener: () => {}, Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console });
+  vm.runInContext(sw, ctx, { filename: 'worker.js' });
+  const report = vm.runInContext("runCompliance(COMPLIANCE_CATALOGUE, { claimedVersion: '2099-01-01' })", ctx);
+  assert.equal(report.bestEffort, true);
+  assert.equal(report.verdict, 'warn');
+  assert.equal(report.results.find((r) => r.id === 'MCP-VER-001').status, 'warn');
+});
+
+/** Run node-server.js from `serverPath` with PORT=0; resolves with its announced URL */
+function runServer(serverPath) {
+  const child = spawn(process.execPath, [serverPath], { env: { ...process.env, PORT: '0', HOST: '127.0.0.1' } });
+  return new Promise((resolve, reject) => {
+    let out = '';
+    const timer = setTimeout(() => { child.kill(); reject(new Error('no startup line: ' + out)); }, 10000);
+    child.stdout.on('data', (c) => {
+      out += c;
+      const m = /running at (http:\/\/\S+)/.exec(out);
+      if (m) { clearTimeout(timer); resolve({ child, url: m[1] }); }
+    });
+    child.on('exit', (code) => { clearTimeout(timer); reject(new Error('server exited ' + code + ' without starting: ' + (out || '(no output)'))); });
+  });
+}
+
+test('the local server starts when run through a symlinked path, and announces its real port', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'symlinked-'));
+  try {
+    cpSync(join(ROOT_DIR, 'src'), join(dir, 'real', 'src'), { recursive: true });
+    cpSync(join(ROOT_DIR, 'package.json'), join(dir, 'real', 'package.json'));
+    symlinkSync(join(dir, 'real'), join(dir, 'link'), 'dir');
+    const { child, url } = await runServer(join(dir, 'link', 'src', 'hosts', 'node-server.js'));
+    try {
+      assert.doesNotMatch(url, /:0$/, 'announced port 0 instead of the bound port');
+      assert.equal((await fetch(url + '/')).status, 200);
+    } finally {
+      child.kill();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('AC-SEC-CSP-01: both hosts send the policy', async () => {
+  const required = ["connect-src 'self'", "frame-ancestors 'none'", "default-src 'none'", "base-uri 'none'", "form-action 'self'"];
+  const check = (where, headers) => {
+    const csp = headers.get('content-security-policy');
+    assert.ok(csp, where + ' sends no Content-Security-Policy');
+    for (const d of required) assert.ok(csp.split(/;\s*/).includes(d), where + ' policy lacks ' + d + ': ' + csp);
+  };
+
+  // Cloudflare bundle, executed as built
+  let handler;
+  const ctx = vm.createContext({ addEventListener: (t, fn) => { if (t === 'fetch') handler = fn; }, Request, Response, Headers, URL, fetch, AbortController, setTimeout, clearTimeout, Date, JSON, console });
+  vm.runInContext(build({ write: false }).sw, ctx, { filename: 'worker.js' });
+  for (const path of ['/', '/oauth/callback']) {
+    const res = await new Promise((resolve) => handler({ request: new Request('https://tester.example' + path), respondWith: resolve }));
+    check('worker ' + path, res.headers);
+  }
+
+  // Local Node server
+  const server = createServer({ allowedOrigins: '', allowedHosts: '' });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    for (const path of ['/', '/oauth/callback']) {
+      const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`);
+      check('node ' + path, res.headers);
+    }
+  } finally {
+    await new Promise((r) => { server.closeAllConnections?.(); server.close(r); });
+  }
 });

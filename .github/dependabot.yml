@@ -1,0 +1,23 @@
+version: 2
+# Every update waits 7 days after a release: a brand-new version is when a
+# compromised release is most likely to go unnoticed, and when package mirrors
+# may not have it yet.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: pip
+    directory: /docs/manual
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
