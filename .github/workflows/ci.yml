@@ -4,34 +4,155 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
 
       - run: npm ci
 
+      - name: No known vulnerabilities, and every package's registry signature is valid
+        run: |
+          npm audit --audit-level=low
+          npm audit signatures
+
       - name: Install Chromium for end-to-end tests
         run: npx playwright install --with-deps chromium
 
-      - run: npm test
+      - name: Install the lint toolchain, for the lint gate's own tests
+        run: npm ci --prefix tools/lint
 
-      - run: npm run build
+      - name: Every test suite, with a JUnit report
+        run: npm run test:ci
+
+      - name: Failing tests by acceptance criterion
+        if: always()
+        run: node scripts/ci-summary.mjs "reports/junit-node${{ matrix.node }}.xml"
+
+      - name: Upload the JUnit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-node${{ matrix.node }}
+          path: reports/
+          if-no-files-found: error
+
+      - name: Every acceptance criterion has a test
+        run: npm run test:trace
+
+      - run: make build
+
+      - name: The build is reproducible
+        run: |
+          (cd dist && sha256sum index.html worker.js worker.mjs) > "$RUNNER_TEMP/first.sha256"
+          mkdir "$RUNNER_TEMP/again" && git archive HEAD | tar -x -C "$RUNNER_TEMP/again"
+          (cd "$RUNNER_TEMP/again" && node scripts/build.mjs > /dev/null && cd dist && sha256sum --check "$RUNNER_TEMP/first.sha256")
+
+      - name: Staged install puts the mcp-tester command in place
+        run: |
+          make DESTDIR="$RUNNER_TEMP/stage" install
+          test -x "$RUNNER_TEMP/stage/usr/local/bin/mcp-tester"
+          test -f "$RUNNER_TEMP/stage/usr/local/lib/mcp-tester/src/hosts/node-server.js"
 
       - name: Upload build (worker.js to paste into Cloudflare, worker.mjs, index.html)
-        if: matrix.node == 22
-        uses: actions/upload-artifact@v4
+        if: matrix.node == 24
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mcp-tester-dist
           path: dist/
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/lint/package-lock.json
+
+      - run: npm ci --prefix tools/lint
+
+      - name: ESLint at zero findings; the complexity baseline only shrinks
+        run: npm run lint
+
+  docs-lint:
+    name: Docs lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: README follows the template layout
+        run: npm run check:readme
+
+      - name: Every relative link and anchor resolves
+        run: npm run check:links
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: User manual builds with no warnings
+        run: |
+          for attempt in 1 2 3; do   # a package released minutes ago can be missing from a PyPI mirror for a while
+            pip install --require-hashes -r docs/manual/requirements.txt && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 30
+          done
+          make docs
+
+      - name: Markdown style
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        with:
+          globs: '**/*.md'
+
+      - name: Spelling
+        uses: codespell-project/actions-codespell@e3258cca84ce02b0bb36a3d41f2c18f719a0cc1a # v2.4.3
+        with:
+          # The action ignores .codespellrc's skip list, so repeat it here
+          skip: ./node_modules,./tools/lint/node_modules,./dist,./build,./package-lock.json,./.git
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The review action fails outright where the repository's dependency
+      # graph is off; this skips it with a warning instead (a 404 only).
+      - name: Is the dependency graph on?
+        id: graph
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/dependency-graph.mjs
+
+      - name: No new dependency with a known vulnerability
+        if: steps.graph.outputs.on == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: low

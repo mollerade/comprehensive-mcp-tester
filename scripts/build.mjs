@@ -10,11 +10,12 @@
  * needs no build step on Cloudflare's side. The build checks its own output
  * (HTML round-trip, syntax, no leftover module syntax) before writing.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import vm from 'node:vm';
 import { assembleHtml } from '../src/ui/assemble.js';
+import { isMain } from './is-main.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -28,6 +29,35 @@ export function stripModuleSyntax(src) {
     .replace(/^export\s+(async\s+function|function|const|let|var|class)\b/gm, '$1')
     .replace(/^export\s*\{[^}]*\};?[ \t]*\n?/gm, '');
 }
+
+/* src/core runs unchanged on the Worker, the Node server and (compliance) in tests,
+   so it may not reach for any one platform. Cloudflare-only names are the ones a
+   Worker gets for free and Node does not. */
+const PLATFORM_ONLY = [
+  [/\bfrom\s*['"]node:|\bimport\s*\(\s*['"]node:|\brequire\s*\(/, 'imports a node: module'],
+  [/\b(HTMLRewriter|WebSocketPair|caches\.default|__STATIC_CONTENT)\b/, 'uses a Cloudflare-only API'],
+];
+
+function jsFilesUnder(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? jsFilesUnder(join(dir, e.name)) : (e.name.endsWith('.js') ? [join(dir, e.name)] : []));
+}
+
+/** Every platform-specific reach in a platform-free tree, as "file: reason" */
+export function platformViolations(dir) {
+  const out = [];
+  for (const file of jsFilesUnder(dir)) {
+    const src = readFileSync(file, 'utf8');
+    for (const [pattern, reason] of PLATFORM_ONLY) if (pattern.test(src)) out.push(relative(ROOT, file) + ': ' + reason);
+  }
+  return out;
+}
+
+/** Core sources concatenated into the Worker, dependencies first */
+const CORE_FILES = [
+  'src/core/proxy.js', 'src/core/oauth-client.js', 'src/core/security-headers.js',
+  'src/core/compliance/rules/version.js', 'src/core/compliance/catalogue.js', 'src/core/compliance/engine.js',
+];
 
 /** Embed arbitrary text as a JS template literal. */
 export function toTemplateLiteral(text) {
@@ -62,9 +92,11 @@ function banner(format) {
   ].join('\n');
 }
 
-export function build({ write = true } = {}) {
+export function build({ write = true, coreDir = join(ROOT, 'src', 'core') } = {}) {
+  const platform = platformViolations(coreDir);
+  if (platform.length) throw new Error('src/core must stay platform-free:\n  ' + platform.join('\n  '));
   const html = assembleHtml();
-  const core = ['src/core/proxy.js', 'src/core/oauth-client.js']
+  const core = CORE_FILES
     .map((f) => stripModuleSyntax(readFileSync(join(ROOT, f), 'utf8'))).join('\n');
   const host = stripModuleSyntax(readFileSync(join(ROOT, 'src/hosts/cloudflare.js'), 'utf8'));
   const htmlConst = 'const HTML = ' + toTemplateLiteral(html) + ';\n\n';
@@ -97,7 +129,7 @@ export function build({ write = true } = {}) {
   return { html, sw, mod };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMain(import.meta.url)) {
   const { html, sw, mod } = build();
   const kb = (s) => (Buffer.byteLength(s) / 1024).toFixed(1) + ' KB';
   console.log(`MCP Tester ${pkg.version} built:`);

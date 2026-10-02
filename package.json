@@ -8,7 +8,7 @@
     "mcp-tester": "src/hosts/node-server.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -16,6 +16,11 @@
     "dev": "node --watch src/hosts/node-server.js",
     "mock": "node tests/fixtures/mock-mcp-server.mjs",
     "test": "node --test",
+    "test:ci": "node scripts/run-ci-tests.mjs",
+    "lint": "node tools/lint/run.mjs",
+    "test:trace": "node scripts/check-traceability.mjs",
+    "check:readme": "node scripts/check-readme.mjs",
+    "check:links": "node scripts/check-links.mjs",
     "deploy": "npm run build && npx wrangler deploy"
   },
   "devDependencies": {

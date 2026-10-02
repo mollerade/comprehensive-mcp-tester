@@ -1,0 +1,112 @@
+{
+  "src/core/proxy.js": {
+    "complexity": {
+      "proxyMcp": 39
+    },
+    "max-lines-per-function": {
+      "proxyMcp": 145
+    },
+    "sonarjs/cognitive-complexity": {
+      "proxyMcp": 41
+    }
+  },
+  "src/hosts/cloudflare.js": {
+    "complexity": {
+      "handleRequest": 15
+    }
+  },
+  "src/hosts/node-server.js": {
+    "complexity": {
+      "(unnamed #1)": 20
+    },
+    "max-lines-per-function": {
+      "createServer": 63
+    },
+    "sonarjs/cognitive-complexity": {
+      "(unnamed #1)": 21
+    }
+  },
+  "src/ui/js/auth.js": {
+    "complexity": {
+      "acceptToken": 15,
+      "authHeaders": 11,
+      "registerClient": 12,
+      "renderAuthBadge": 12,
+      "renderAuthModal": 32
+    },
+    "max-lines": {
+      "(file)": 658
+    },
+    "sonarjs/cognitive-complexity": {
+      "renderAuthModal": 32
+    }
+  },
+  "src/ui/js/diagnostics.js": {
+    "complexity": {
+      "computeStats": 16,
+      "exportReport": 14,
+      "renderDiagnostics": 16,
+      "renderLatencyChart": 24,
+      "showProbeTip": 14
+    },
+    "max-lines-per-function": {
+      "renderDiagnostics": 68,
+      "renderLatencyChart": 83
+    },
+    "sonarjs/cognitive-complexity": {
+      "computeStats": 27,
+      "exportReport": 18,
+      "renderDiagnostics": 19,
+      "renderLatencyChart": 41
+    }
+  },
+  "src/ui/js/log.js": {
+    "complexity": {
+      "renderLog": 22
+    },
+    "sonarjs/cognitive-complexity": {
+      "renderLog": 50
+    }
+  },
+  "src/ui/js/schema.js": {
+    "complexity": {
+      "suggestArgs": 13,
+      "suggestValue": 32
+    },
+    "sonarjs/cognitive-complexity": {
+      "suggestValue": 37
+    }
+  },
+  "src/ui/js/transport.js": {
+    "complexity": {
+      "applyModernMeta": 11,
+      "collectParamHeaders": 14,
+      "modernHeaders": 12
+    }
+  },
+  "src/ui/js/views.js": {
+    "complexity": {
+      "collectFormArgs": 16,
+      "hydrateExpanded": 19,
+      "renderItemList": 11,
+      "renderReqRes": 16,
+      "renderToolDetail": 20
+    },
+    "sonarjs/cognitive-complexity": {
+      "hydrateExpanded": 32,
+      "renderToolDetail": 27
+    }
+  },
+  "tests/hosts.test.mjs": {
+    "max-lines-per-function": {
+      "(unnamed #1)": 61,
+      "(unnamed #2)": 80
+    }
+  },
+  "tests/ui-logic.test.mjs": {
+    "max-lines-per-function": {
+      "(unnamed #1)": 77,
+      "(unnamed #2)": 80
+    }
+  }
+}

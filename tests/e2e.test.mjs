@@ -16,7 +16,8 @@ try { ({ chromium } = await import('playwright')); } catch { /* not installed */
 
 async function launch() {
   if (!chromium) return null;
-  const attempts = [process.env.PW_CHROMIUM_PATH, undefined, '/opt/pw-browsers/chromium'];
+  // An explicit PW_CHROMIUM_PATH is the only browser tried, so a wrong path is noticed
+  const attempts = process.env.PW_CHROMIUM_PATH ? [process.env.PW_CHROMIUM_PATH] : [undefined, '/opt/pw-browsers/chromium'];
   for (const executablePath of attempts) {
     if (executablePath === null) continue;
     try { return await chromium.launch(executablePath ? { executablePath } : {}); } catch { /* try next */ }
@@ -25,9 +26,14 @@ async function launch() {
 }
 
 const browser = await launch();
+// In CI a missing browser must fail the run: skipping would hide every UI regression
+if (!browser && process.env.CI === 'true') {
+  throw new Error('Chromium is required when CI=true: run `npx playwright install --with-deps chromium`, or fix PW_CHROMIUM_PATH');
+}
 const skip = browser ? false : 'Playwright/Chromium not available — run `npx playwright install chromium`';
 
-let mock, server, base, page;
+let mock, server, base, page, firstResponse;
+const cspViolations = [];   // every Content-Security-Policy report, from the page and its OAuth pop-ups
 
 before(async () => {
   if (skip) return;
@@ -36,7 +42,10 @@ before(async () => {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
-  await page.goto(base + '/');
+  const watch = (p) => p.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) cspViolations.push(m.text()); });
+  watch(page);
+  page.context().on('page', watch);
+  firstResponse = await page.goto(base + '/');
 });
 
 after(async () => {
@@ -47,22 +56,31 @@ after(async () => {
 });
 
 const lastCall = (method) => [...mock.calls].reverse().find((c) => c.body.method === method);
-// state.connected flips before tools/list is sent, so wait for the call itself (made after `since`).
-const waitForCall = async (method, path, since, timeout = 5000) => {
-  const end = Date.now() + timeout;
-  for (;;) {
-    const c = mock.calls.slice(since).reverse().find((x) => x.body.method === method && x.path === path);
-    if (c) return c;
-    if (Date.now() > end) throw new Error('no ' + method + ' call to ' + path);
+const waitDraftRes = () => page.waitForFunction(() => { const d = window.state.drafts['tool-0']; return d && d.lastRes !== undefined; });
+
+// `state.connected` flips true before fetchAll()'s tools/list round-trips (transport.js),
+// so asserting on a recorded call right after waiting for `connected` races the network.
+// Poll the mock's own record for the exact (method, path) the assertion needs instead.
+// `after` skips calls recorded earlier, so a path reused across tests can't match a stale one.
+/** The newest recorded call to `method` (on `path`, if given) at index `after` or later */
+function findCall(method, path, after) {
+  const matches = (c) => c.body.method === method && (path === undefined || c.path === path);
+  return mock.calls.slice(after).reverse().find(matches);
+}
+
+async function waitForCall(method, path, { after = 0, timeoutMs = 10000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (let found = findCall(method, path, after); !found; found = findCall(method, path, after)) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${method}${path ? ' to ' + path : ''}`);
     await new Promise((r) => setTimeout(r, 25));
   }
-};
-const waitDraftRes = () => page.waitForFunction(() => { const d = window.state.drafts['tool-0']; return d && d.lastRes !== undefined; });
+  return findCall(method, path, after);
+}
 
 test('connects through the real proxy and shows server identity', { skip }, async () => {
   await page.fill('#urlInput', mock.url);
   await page.click('#connectBtn');
-  await page.waitForFunction(() => window.state.connected);
+  await page.waitForFunction(() => window.state.connected && window.state.tools.length === 3);
   assert.match(await page.textContent('#statusText'), /mock-mcp 1\.0\.0/);
   assert.equal(await page.evaluate(() => window.state.tools.length), 3);
 });
@@ -281,8 +299,16 @@ test('dual-era server is spoken to in the modern protocol', { skip }, async () =
 
 const statusIs = (text) => page.waitForFunction((t) => document.getElementById('statusText').textContent === t, text, { timeout: 5000 });
 const traceStep = (name) => page.evaluate((n) => window.auth.trace.find((s) => s.name === n), name);
+// The page is already at base + '/', so waiting for that URL resolves at once: wait for the
+// callback first, then for the return and the reloaded page's globals.
+const signInViaRedirect = async () => {
+  await Promise.all([page.waitForURL(/\/oauth\/callback/, { timeout: 10000 }), page.click('#authSignIn')]);
+  await page.waitForURL(base + '/', { timeout: 10000 });
+  await page.waitForFunction(() => window.state && window.auth, null, { timeout: 10000 });
+};
 
 test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resource, then connects', { skip }, async () => {
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
@@ -290,9 +316,8 @@ test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resourc
   assert.equal(await page.inputValue('#authMode'), 'oauth');
   assert.match(await page.textContent('.auth-challenge'), /resource_metadata=/);
 
-  const since = mock.calls.length;
   await page.click('#authSignIn');
-  const call = await waitForCall('tools/list', '/secure', since, 10000);
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
 
   const reg = mock.oauth.registrations.at(-1);
   assert.equal(reg.application_type, 'native', 'a localhost tester registers as a native app');
@@ -306,6 +331,8 @@ test('OAuth: a 401 opens Auth; sign-in discovers, registers, uses PKCE + resourc
   assert.equal(tr.resource, mock.base + '/secure');
   assert.ok(tr.code_verifier && tr.code_verifier.length >= 43);
 
+  const call = await waitForCall('tools/list', '/secure', { after: mark });
+  assert.equal(call.path, '/secure');
   assert.match(call.headers.authorization, /^Bearer at-/);
   assert.equal((await traceStep('Issuer check (RFC 9207)')).outcome, 'ok');
   assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure');
@@ -341,9 +368,8 @@ test('client credentials, no resource_metadata hint: discovery probes the well-k
   await page.selectOption('#authMode', 'client_credentials');
   await page.fill('#authClientId', 'cc-client');
   await page.fill('#authClientSecret', 'cc-secret');
-  const since = mock.calls.length;
   await page.click('#authGetToken');
-  const call = await waitForCall('tools/list', '/secure-nohint', since, 10000);
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 10000 });
   assert.equal((await traceStep('Challenge')).outcome, 'warn');
   assert.equal((await traceStep('Protected resource metadata')).url, mock.base + '/.well-known/oauth-protected-resource/secure-nohint');
   const tr = mock.oauth.tokenRequests.at(-1);
@@ -351,40 +377,110 @@ test('client credentials, no resource_metadata hint: discovery probes the well-k
   assert.match(tr.authorization, /^Basic /, 'secret goes in Basic auth, as the metadata allows');
   assert.equal(tr.client_secret, undefined);
   assert.equal(tr.resource, mock.base + '/secure-nohint');
-  assert.match(call.headers.authorization, /^Bearer at-/);
+  assert.match((await waitForCall('tools/list', '/secure-nohint')).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
 test('OAuth with pop-ups blocked: the page redirects to sign in and resumes on return', { skip }, async () => {
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.base + '/secure');
   await page.click('#connectBtn');
   await statusIs('Sign-in required');
-  await page.evaluate(() => { window.open = () => null; });
+  await page.evaluate(() => { window.auth.preIssuer = null; window.open = () => null; });
   await page.selectOption('#authMode', 'oauth');
-  const since = mock.calls.length;
-  // The page is already at base + '/', so wait for the callback first, then for the return.
-  await Promise.all([page.waitForURL(/\/oauth\/callback/, { timeout: 10000 }), page.click('#authSignIn')]);
-  await page.waitForURL(base + '/', { timeout: 10000 });
+  // A public client: an earlier test typed client credentials into these fields, and a secret is not kept across a redirect
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
+  await signInViaRedirect();
   await page.waitForFunction(() => window.state && window.state.connected, null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
   assert.equal(await page.evaluate(() => location.search), '', 'no code left in the address bar');
   const trace = await page.evaluate(() => window.auth.trace.map((s) => s.name + ':' + s.outcome));
   assert.ok(trace.includes('Protected resource metadata:ok'), 'trace from before the redirect survives');
   assert.ok(trace.includes('Token request:ok'));
-  assert.match((await waitForCall('tools/list', '/secure', since)).headers.authorization, /^Bearer at-/);
+  assert.match((await waitForCall('tools/list', '/secure', { after: mark })).headers.authorization, /^Bearer at-/);
   await page.click('#connectBtn');
 });
 
+test('OAuth with pop-ups blocked and a client secret: the secret is not persisted, and is asked for again', { skip }, async () => {
+  const tokensBefore = mock.oauth.tokenRequests.length;
+  await page.evaluate(() => window.forgetCredentials());   // the previous test signed in to /secure
+  await page.fill('#urlInput', mock.base + '/secure');
+  await page.click('#connectBtn');
+  await statusIs('Sign-in required');
+  await page.evaluate(() => { window.open = () => null; });
+  await page.selectOption('#authMode', 'oauth');
+  await page.fill('#authClientId', 'cc-client');
+  await page.fill('#authClientSecret', 'cc-secret');
+  // Record what the page writes to sessionStorage before it navigates away
+  await page.evaluate(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (String(v).includes('cc-secret')) localStorage.setItem('__secretPersisted', '1'); return set.call(this, k, v); };
+  });
+  await signInViaRedirect();
+  await page.waitForFunction(() => window.auth.trace.some((s) => s.name === 'Token request' && s.outcome === 'fail'), null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('__secretPersisted')), null, 'the client secret was written to sessionStorage');
+  assert.equal(mock.oauth.tokenRequests.length, tokensBefore, 'a token request was sent without the secret');
+  assert.match(await page.evaluate(() => window.auth.trace.at(-1).detail), /client secret is not kept across the redirect/);
+  assert.equal(await page.evaluate(() => window.state.connected), false);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp_oauth_pending')), null, 'pending state is cleared');
+  await page.fill('#authClientId', '');
+  await page.fill('#authClientSecret', '');
+  await page.evaluate(() => { localStorage.removeItem('__secretPersisted'); window.auth.preIssuer = null; window.hideAuthModal(); });
+});
+
 test('credentials are not sent to a different server', { skip }, async () => {
-  const since = mock.calls.length;
+  const mark = mock.calls.length;
   await page.fill('#urlInput', mock.url);
   await page.click('#connectBtn');
-  const call = await waitForCall('tools/list', new URL(mock.url).pathname, since);
-  assert.equal(call.headers.authorization, undefined);
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  assert.equal((await waitForCall('tools/list', '/mcp', { after: mark })).headers.authorization, undefined);
   await page.click('#connectBtn');
+});
+
+// Connecting flips `state.connected` before fetchAll() returns, so the user can switch
+// servers while the old server's tools/list is still in flight (/slow-list holds it 800ms).
+async function connectSlowList() {
+  if (await page.evaluate(() => window.state.connected)) await page.click('#connectBtn');
+  const mark = mock.calls.length;
+  await page.fill('#urlInput', mock.base + '/slow-list');
+  await page.click('#connectBtn');
+  await page.waitForFunction(() => window.state.connected, null, { timeout: 5000 });
+  await waitForCall('tools/list', '/slow-list', { after: mark });
+}
+const waitPastSlowList = () => new Promise((r) => setTimeout(r, 1200));
+
+test('AC-BUG-CONNGEN-01: a stale response is ignored', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect from A
+  await page.fill('#urlInput', mock.url);
+  await page.click('#connectBtn');                                  // connect to B
+  await page.waitForFunction(() => window.state.connected && window.state.tools.length === 3, null, { timeout: 5000 });
+  await waitPastSlowList();
+  const names = await page.evaluate(() => window.state.tools.map((t) => t.name));
+  assert.equal(names.includes('slow_list_tool'), false, 'A\'s late tools/list wrote into B: ' + names.join(', '));
+  assert.equal(names.length, 3);
+  await page.click('#connectBtn');
+});
+
+test('AC-BUG-CONNGEN-02: disconnect invalidates in-flight work', { skip }, async () => {
+  await connectSlowList();
+  await page.click('#connectBtn');                                  // disconnect while tools/list is in flight
+  await waitPastSlowList();
+  assert.deepEqual(await page.evaluate(() => window.state.tools), []);
+  assert.equal(await page.textContent('#toolsBadge'), '0');
+  assert.equal(await page.evaluate(() => document.body.textContent.includes('slow_list_tool')), false);
 });
 
 test('no horizontal overflow at phone width', { skip }, async () => {
   await page.setViewportSize({ width: 400, height: 800 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+});
+
+test('AC-SEC-CSP-02: the app still functions under the policy', { skip }, async () => {
+  const csp = firstResponse.headers()['content-security-policy'];
+  assert.ok(csp && csp.includes("connect-src 'self'"), 'the page was not served with the policy');
+  // Runs last: every flow above (connect, both eras, sign-in with pop-up and redirect, execute,
+  // diagnostics, theme) has run under the policy by now, and none may have been blocked.
+  assert.deepEqual(cspViolations, []);
 });

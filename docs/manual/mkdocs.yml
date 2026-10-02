@@ -1,0 +1,81 @@
+# The rendered user manual. `make docs` stages the repository's Markdown into
+# build/manual-src (the chapters are the existing files, not copies to keep in
+# sync) and builds it here with --strict, so a broken link or anchor fails.
+site_name: MCP Tester
+site_description: A browser-based client for testing and diagnosing Model Context Protocol servers.
+site_url: https://sebastienrousseau.com/comprehensive-mcp-tester/
+repo_url: https://github.com/mollerade/comprehensive-mcp-tester
+edit_uri: ""
+docs_dir: ../../build/manual-src
+site_dir: ../../build/manual-site
+
+theme:
+  name: material
+  logo: docs/assets/logo.svg
+  favicon: docs/assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      toggle:
+        icon: material/weather-night
+        name: Dark theme
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Light theme
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+extra_css:
+  - docs/manual/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+not_in_nav: |
+  docs/assets/LOGO.md
+
+nav:
+  - Overview: README.md
+  - Roadmap: ROADMAP.md
+  - Changelog: CHANGELOG.md
+  - How it works:
+      - Architecture: docs/ARCHITECTURE.md
+      - Decisions: docs/adr/README.md
+      - "0001 Proxy through the host": docs/adr/0001-proxy-through-the-host.md
+      - "0002 Single-file UI": docs/adr/0002-single-file-ui.md
+      - "0003 Streamable HTTP only": docs/adr/0003-streamable-http-only.md
+      - "0004 Three-state diagnostics": docs/adr/0004-three-state-diagnostics.md
+      - "0005 No bundled Mermaid": docs/adr/0005-no-bundled-mermaid.md
+      - "0006 Manual with MkDocs": docs/adr/0006-manual-with-mkdocs.md
+      - "0007 Lint gate": docs/adr/0007-lint-gate.md
+  - Contributing:
+      - Development: DEVELOPMENT.md
+      - Contributing: CONTRIBUTING.md
+      - Acceptance criteria: docs/acceptance/README.md
+      - Policies: docs/POLICIES.md
+      - Packaging: docs/packaging.md
+      - Repository standard: docs/STANDARDS.md
+  - Getting help: SUPPORT.md
+  - Security: SECURITY.md
+  - Governance: GOVERNANCE.md
+  - Code of conduct: CODE_OF_CONDUCT.md

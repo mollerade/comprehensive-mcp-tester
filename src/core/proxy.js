@@ -65,7 +65,7 @@ export async function proxyMcp(payload, env) {
   var parsed;
   try {
     parsed = new URL(targetUrl);
-  } catch (e) {
+  } catch {
     return { status: 400, json: { error: 'Invalid target URL' } };
   }
 

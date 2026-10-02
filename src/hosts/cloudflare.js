@@ -18,6 +18,7 @@
  */
 import { proxyMcp, parseAllowedOrigins } from '../core/proxy.js';
 import { clientMetadataDocument, CLIENT_METADATA_PATH, CALLBACK_PATH } from '../core/oauth-client.js';
+import { CONTENT_SECURITY_POLICY } from '../core/security-headers.js';
 
 /* global HTML */
 
@@ -25,7 +26,7 @@ export async function handleRequest(request, allowedOriginsStr) {
   var url = new URL(request.url);
 
   if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '' || url.pathname === CALLBACK_PATH)) {
-    return new Response(HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Referrer-Policy': 'no-referrer' } });
+    return new Response(HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CONTENT_SECURITY_POLICY } });
   }
 
   if (request.method === 'GET' && url.pathname === CLIENT_METADATA_PATH) {
@@ -40,7 +41,7 @@ export async function handleRequest(request, allowedOriginsStr) {
     var payload;
     try {
       payload = await request.json();
-    } catch (e) {
+    } catch {
       return cfJson(400, { error: 'Invalid JSON in proxy request body' });
     }
     var result = await proxyMcp(payload, {
