@@ -155,7 +155,7 @@ export function isReservedAddress(address) {
   var v4 = parseIPv4(address);
   if (v4 !== null) return isReservedIPv4(v4);
   var v6 = parseIPv6(address);
-  return v6 ? isReservedIPv6(v6) : true;     // unparseable: refuse
+  return v6 ? isReservedIPv6(v6) : true;     // unparsable: refuse
 }
 
 function urlProblem(url) {
