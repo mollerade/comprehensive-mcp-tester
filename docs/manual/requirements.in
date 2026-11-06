@@ -7,4 +7,4 @@
 #   uv pip compile docs/manual/requirements.in --generate-hashes --python-version 3.12 \
 #     --exclude-newer <YYYY-MM-DD one week ago>T00:00:00Z --no-header -o docs/manual/requirements.txt
 mkdocs==1.6.1
-mkdocs-material==9.7.7
+mkdocs-material==9.8.0
